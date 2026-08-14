@@ -24,7 +24,7 @@ jobs:
 
       - name: Run discovery worker
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: https://aaxauqznfhcvgevfczye.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DISCOVERY_WORKER_NAME: github-actions-discovery
         run: node src/discovery/worker-http.mjs
