@@ -11,7 +11,7 @@ jobs:
   discovery:
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 5
+    timeout-minutes: 10
     concurrency:
       group: aqarat-discovery-worker
       cancel-in-progress: false
@@ -20,11 +20,23 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
-      - name: Run discovery worker
+      - name: Drain discovery queue
         env:
           SUPABASE_URL: https://aaxauqznfhcvgevfczye.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DISCOVERY_WORKER_NAME: github-actions-discovery
-        run: node src/discovery/worker-http.mjs
+        run: |
+          set +e
+          failures=0
+          for attempt in 1 2 3 4 5 6; do
+            echo "=== DISCOVERY QUEUE PASS ${attempt}/6 ==="
+            node src/discovery/worker-http.mjs
+            rc=$?
+            if [ "$rc" -ne 0 ]; then
+              failures=$((failures + 1))
+            fi
+          done
+          echo "DISCOVERY_FAILURE_PASSES=$failures"
+          exit "$failures"
