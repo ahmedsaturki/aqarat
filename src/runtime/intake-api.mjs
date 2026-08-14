@@ -1,0 +1,171 @@
+import http from 'node:http';
+import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
+
+const PORT = Number(process.env.PORT || 8787);
+const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
+
+function json(res, status, payload) {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+    'cache-control': 'no-store',
+  });
+  res.end(body);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error('payload_too_large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
+      } catch {
+        reject(new Error('invalid_json'));
+      }
+    });
+
+    req.on('error', reject);
+  });
+}
+
+function requireRuntimeConfig() {
+  if (!SUPABASE_URL) throw new Error('SUPABASE_URL_required');
+  if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY_required');
+}
+
+async function supabase(path, options = {}) {
+  requireRuntimeConfig();
+  const response = await fetch(`${SUPABASE_URL}${path}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'content-type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+
+  if (!response.ok) {
+    const error = new Error(`supabase_http_${response.status}`);
+    error.status = response.status;
+    error.body = body;
+    throw error;
+  }
+
+  return body;
+}
+
+async function persistIntakeEvent(event) {
+  const rows = await supabase('/rest/v1/intake_events?on_conflict=channel,external_event_id', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+    body: JSON.stringify({
+      channel: event.channel,
+      external_event_id: event.external_event_id,
+      sender_id: event.sender_id,
+      chat_id: event.chat_id,
+      raw_text: event.raw_text,
+      parsed_payload: event.parsed_payload,
+      status: 'received',
+    }),
+  });
+
+  if (Array.isArray(rows) && rows[0]?.id) return rows[0];
+
+  const existing = await supabase(
+    `/rest/v1/intake_events?channel=eq.${encodeURIComponent(event.channel)}&external_event_id=eq.${encodeURIComponent(event.external_event_id)}&select=id,status,parsed_payload,raw_text&limit=1`,
+    { method: 'GET' },
+  );
+
+  if (!existing?.[0]?.id) throw new Error('intake_event_persisted_but_not_found');
+  return existing[0];
+}
+
+async function commitIntakeEvent(eventId) {
+  const rows = await supabase('/rest/v1/rpc/commit_intake_event', {
+    method: 'POST',
+    body: JSON.stringify({ p_event_id: eventId }),
+  });
+  return rows;
+}
+
+function authorizedTelegram(req) {
+  if (!TELEGRAM_WEBHOOK_SECRET) return true;
+  return req.headers['x-telegram-bot-api-secret-token'] === TELEGRAM_WEBHOOK_SECRET;
+}
+
+async function handle(req, res) {
+  if (req.method === 'GET' && req.url === '/healthz') {
+    return json(res, 200, { ok: true, service: 'aqarat-intake', version: 'v1' });
+  }
+
+  if (req.method !== 'POST' || !['/intake', '/telegram/update'].includes(req.url)) {
+    return json(res, 404, { ok: false, error: 'not_found' });
+  }
+
+  if (req.url === '/telegram/update' && !authorizedTelegram(req)) {
+    return json(res, 401, { ok: false, error: 'telegram_webhook_unauthorized' });
+  }
+
+  try {
+    const payload = await readBody(req);
+    const event = req.url === '/telegram/update'
+      ? telegramUpdateToIntakeEvent(payload)
+      : payload;
+
+    if (!event?.raw_text || !event?.channel) {
+      return json(res, 422, { ok: false, error: 'invalid_intake_contract' });
+    }
+
+    const stored = await persistIntakeEvent(event);
+    const result = await commitIntakeEvent(stored.id);
+
+    return json(res, 200, {
+      ok: true,
+      intake_event_id: stored.id,
+      result,
+    });
+  } catch (error) {
+    const status = error.status === 401 || error.status === 403 ? 502 : 500;
+    console.error(JSON.stringify({
+      event: 'intake_error',
+      error: error.message,
+      body: error.body ?? null,
+    }));
+    return json(res, status, { ok: false, error: error.message });
+  }
+}
+
+const server = http.createServer((req, res) => {
+  handle(req, res).catch((error) => {
+    console.error(error);
+    json(res, 500, { ok: false, error: 'internal_error' });
+  });
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Aqarat intake runtime listening on :${PORT}`);
+});
+
+process.on('SIGTERM', () => server.close(() => process.exit(0)));
+process.on('SIGINT', () => server.close(() => process.exit(0)));
