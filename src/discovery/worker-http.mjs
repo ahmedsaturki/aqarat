@@ -97,10 +97,9 @@ async function insertEntities(job, evidence, candidates) {
 }
 
 async function finish(job, patch) {
-  const { finished_at: _finishedAt, ...jobPatch } = patch;
   await sb(`/rest/v1/discovery_jobs?id=eq.${encodeURIComponent(job.id)}`, {
     method: 'PATCH',
-    body: JSON.stringify({ ...jobPatch, updated_at: new Date().toISOString(), locked_by: null, locked_at: null }),
+    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString(), locked_by: null, locked_at: null }),
   });
 }
 
@@ -139,6 +138,7 @@ async function main() {
       status: retryable ? 'queued' : 'failed',
       last_error: error.message,
       available_at: retryable ? new Date(Date.now() + Math.min(300000, attempts * 30000)).toISOString() : new Date().toISOString(),
+      finished_at: retryable ? null : new Date().toISOString(),
     });
     console.error(JSON.stringify({ ok: false, job_id: job.id, error: error.message, retryable }));
     process.exitCode = 1;
