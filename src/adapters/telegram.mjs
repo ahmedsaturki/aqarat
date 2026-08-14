@@ -46,12 +46,22 @@ export function telegramCommand(update) {
   const text = clean(message?.text ?? message?.caption);
   if (!text.startsWith('/')) return null;
 
-  const [commandToken, ...args] = text.split(/\s+/);
-  const [command, mention] = commandToken.slice(1).split('@');
+  const [commandToken, ...rawArgs] = text.split(/\s+/);
+  const [command, inlineMention] = commandToken.slice(1).split('@');
+
+  let mention = inlineMention || null;
+  let args = rawArgs;
+
+  // Telegram clients may emit either `/add@aqarat_bot ...` or `/add @aqarat_bot ...`.
+  // Normalize both forms into the same provider-neutral command contract.
+  if (!mention && args[0]?.startsWith('@')) {
+    mention = args[0].slice(1) || null;
+    args = args.slice(1);
+  }
 
   return {
     command: command.toLowerCase(),
-    mention: mention || null,
+    mention,
     args,
     raw_text: text,
     sender_id: message?.from?.id != null ? String(message.from.id) : null,
