@@ -26,7 +26,9 @@ async function sb(path, init = {}) {
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
   if (!response.ok) {
-    const error = new Error(`supabase_http_${response.status}`);
+    const detail = typeof body === 'string' ? body : JSON.stringify(body);
+    const error = new Error(`supabase_http_${response.status}${detail ? `:${detail.slice(0, 500)}` : ''}`);
+    error.status = response.status;
     error.body = body;
     throw error;
   }
