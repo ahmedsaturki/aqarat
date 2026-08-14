@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "start:intake": "node src/runtime/intake-api.mjs"
   },
   "engines": {
     "node": ">=20"
