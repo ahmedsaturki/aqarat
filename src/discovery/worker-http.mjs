@@ -97,9 +97,10 @@ async function insertEntities(job, evidence, candidates) {
 }
 
 async function finish(job, patch) {
+  const { finished_at: _finishedAt, ...jobPatch } = patch;
   await sb(`/rest/v1/discovery_jobs?id=eq.${encodeURIComponent(job.id)}`, {
     method: 'PATCH',
-    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString(), locked_by: null, locked_at: null }),
+    body: JSON.stringify({ ...jobPatch, updated_at: new Date().toISOString(), locked_by: null, locked_at: null }),
   });
 }
 
