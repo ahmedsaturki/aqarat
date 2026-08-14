@@ -1,4 +1,5 @@
 import { fetchPublicSource } from './http-adapter.mjs';
+import { assertDiscoverySourceAllowed } from './source-policy.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -96,9 +97,12 @@ export async function runDiscoveryOnce() {
     const sourceId = job.payload?.source_id;
     const url = job.payload?.url;
     const source = sourceId ? await getSource(sourceId) : null;
-    if (!source || !source.enabled) throw new Error('discovery_source_not_enabled');
+    if (!source) throw new Error('discovery_source_not_found');
     const target = url || source.base_url;
     if (!target) throw new Error('discovery_target_url_missing');
+
+    // Fail closed: public visibility alone is never sufficient authorization for automation.
+    assertDiscoverySourceAllowed(source, target);
 
     const fetched = await fetchPublicSource(target, { timeoutMs: source.crawl_policy?.timeout_ms });
     const record = await insertSourceRecord(job, source, fetched);
