@@ -17,6 +17,16 @@ Prove the smallest useful production loop before adding discovery or distributio
 - A failure can be retried without duplicating the property.
 - Every state transition is auditable.
 
+## Verified so far
+
+- Deterministic Node test suite: **5/5 passing**.
+- Production Supabase persistence smoke test: **passed**.
+- The test event was marked `processed`.
+- One canonical `property` was created with the expected Sadat City fields.
+- One `google_sheets_projection` job was queued.
+- One `sync_projections` row was created.
+- A second call to `commit_intake_event` returned `already_processed`, proving idempotent processing for the event.
+
 ## Example input
 
 > شقة 120 متر في المنطقة السابعة بمدينة السادات، الدور الثالث، 3 غرف، 2 حمام، تشطيب جيد، للبيع 2.4 مليون. التواصل واتساب 01xxxxxxxxx
