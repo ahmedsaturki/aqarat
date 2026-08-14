@@ -51,13 +51,13 @@ function parseNumber(value) {
 }
 
 function parseArea(text) {
-  const match = firstMatch(text, /(?:^|\s)(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)\b/i);
+  const match = firstMatch(text, /(?:^|\s)(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)/i);
   return match ? parseNumber(match[1]) : null;
 }
 
 function parseBedrooms(text) {
   const match = firstMatch(text, [
-    /(\d+)\s*(?:غرف|غرفة|bedrooms?|beds?)\b/i,
+    /(\d+)\s*(?:غرف|غرفة|bedrooms?|beds?)/i,
     /(?:غرف|غرفة)\s*(?:عدد\s*)?(\d+)/i
   ]);
   return match ? Number(match[1]) : null;
@@ -65,7 +65,7 @@ function parseBedrooms(text) {
 
 function parseBathrooms(text) {
   const match = firstMatch(text, [
-    /(\d+)\s*(?:حمام|حمامات|bathrooms?|baths?)\b/i,
+    /(\d+)\s*(?:حمام|حمامات|bathrooms?|baths?)/i,
     /(?:حمام|حمامات)\s*(?:عدد\s*)?(\d+)/i
   ]);
   return match ? Number(match[1]) : null;
