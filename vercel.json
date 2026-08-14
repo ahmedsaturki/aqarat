@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/healthz", "destination": "/api/healthz" },
+    { "source": "/intake", "destination": "/api/intake" },
+    { "source": "/telegram/update", "destination": "/api/telegram/update" }
+  ]
+}
