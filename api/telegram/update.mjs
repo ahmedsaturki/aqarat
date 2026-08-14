@@ -1,8 +1,6 @@
-import { handleTelegramUpdate } from '../../../src/runtime/vercel-handler.mjs';
-
 export default async function handler(req, res) {
-  // Keep the method gate at the edge of the function so a simple health/probe
-  // request cannot trigger Telegram-adapter module loading.
+  // Method gate first. This also makes the endpoint safe to probe without
+  // loading the Telegram adapter and its dependency graph.
   if (req.method !== 'POST') {
     res.statusCode = 405;
     res.setHeader('content-type', 'application/json; charset=utf-8');
@@ -11,5 +9,6 @@ export default async function handler(req, res) {
     return;
   }
 
+  const { handleTelegramUpdate } = await import('../../src/runtime/vercel-handler.mjs');
   return handleTelegramUpdate(req, res);
 }
