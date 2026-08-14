@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
@@ -30,7 +32,7 @@ function extractJsonLd(html) {
       if (Array.isArray(value)) out.push(...value);
       else out.push(value);
     } catch {
-      // Ignore malformed JSON-LD but preserve the raw page as evidence.
+      // Keep raw source evidence even when individual JSON-LD blocks are malformed.
     }
   }
   return out;
@@ -47,6 +49,10 @@ function assertPublicHttpUrl(input) {
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('unsupported_url_scheme');
   if (url.username || url.password) throw new Error('credentials_in_url_not_allowed');
   return url;
+}
+
+function sha256(text) {
+  return createHash('sha256').update(text).digest('hex');
 }
 
 export async function fetchPublicSource(url, options = {}) {
@@ -101,7 +107,7 @@ export async function fetchPublicSource(url, options = {}) {
       canonical_url: canonical,
       fetched_at: new Date().toISOString(),
       status: 'discovered',
-      content_hash_input: html,
+      content_hash: sha256(html),
       extracted_payload: {
         title: metaContent(html, 'og:title') || html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() || null,
         description: metaContent(html, 'description') || metaContent(html, 'og:description'),
@@ -115,4 +121,4 @@ export async function fetchPublicSource(url, options = {}) {
   }
 }
 
-export { extractJsonLd, stripHtml };
+export { extractJsonLd, stripHtml, sha256 };
