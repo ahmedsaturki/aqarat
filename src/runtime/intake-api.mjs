@@ -21,11 +21,18 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
+    let settled = false;
+
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
 
     req.on('data', (chunk) => {
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
-        reject(new Error('payload_too_large'));
+        fail(new Error('payload_too_large'));
         req.destroy();
         return;
       }
@@ -33,14 +40,16 @@ function readBody(req) {
     });
 
     req.on('end', () => {
+      if (settled) return;
       try {
+        settled = true;
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
       } catch {
-        reject(new Error('invalid_json'));
+        fail(new Error('invalid_json'));
       }
     });
 
-    req.on('error', reject);
+    req.on('error', fail);
   });
 }
 
@@ -75,38 +84,50 @@ async function supabase(path, options = {}) {
   return body;
 }
 
-async function persistIntakeEvent(event) {
-  const rows = await supabase('/rest/v1/intake_events?on_conflict=channel,external_event_id', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
-    body: JSON.stringify({
-      channel: event.channel,
-      external_event_id: event.external_event_id,
-      sender_id: event.sender_id,
-      chat_id: event.chat_id,
-      raw_text: event.raw_text,
-      parsed_payload: event.parsed_payload,
-      status: 'received',
-    }),
-  });
-
-  if (Array.isArray(rows) && rows[0]?.id) return rows[0];
-
+async function findExistingIntakeEvent(event) {
+  if (!event.external_event_id) return null;
   const existing = await supabase(
     `/rest/v1/intake_events?channel=eq.${encodeURIComponent(event.channel)}&external_event_id=eq.${encodeURIComponent(event.external_event_id)}&select=id,status,parsed_payload,raw_text&limit=1`,
     { method: 'GET' },
   );
+  return existing?.[0] ?? null;
+}
 
-  if (!existing?.[0]?.id) throw new Error('intake_event_persisted_but_not_found');
-  return existing[0];
+async function persistIntakeEvent(event) {
+  const existing = await findExistingIntakeEvent(event);
+  if (existing) return existing;
+
+  try {
+    const rows = await supabase('/rest/v1/intake_events', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        channel: event.channel,
+        external_event_id: event.external_event_id,
+        sender_id: event.sender_id,
+        chat_id: event.chat_id,
+        raw_text: event.raw_text,
+        parsed_payload: event.parsed_payload,
+        status: 'received',
+      }),
+    });
+
+    if (Array.isArray(rows) && rows[0]?.id) return rows[0];
+  } catch (error) {
+    if (error.status !== 409) throw error;
+    const raced = await findExistingIntakeEvent(event);
+    if (raced) return raced;
+    throw error;
+  }
+
+  throw new Error('intake_event_persisted_but_not_returned');
 }
 
 async function commitIntakeEvent(eventId) {
-  const rows = await supabase('/rest/v1/rpc/commit_intake_event', {
+  return supabase('/rest/v1/rpc/commit_intake_event', {
     method: 'POST',
     body: JSON.stringify({ p_event_id: eventId }),
   });
-  return rows;
 }
 
 function authorizedTelegram(req) {
