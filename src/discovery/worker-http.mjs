@@ -54,7 +54,7 @@ async function getSource(id) {
 
 async function upsertEvidence(job, source, fetched) {
   const contentHash = createHash('sha256').update(fetched.content_hash_input || '').digest('hex');
-  const rows = await sb('/rest/v1/discovery_evidence', {
+  const rows = await sb('/rest/v1/discovery_evidence?on_conflict=run_id,url', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
     body: JSON.stringify({
