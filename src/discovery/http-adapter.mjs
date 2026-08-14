@@ -3,7 +3,7 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 
 const DEFAULT_TIMEOUT_MS = 15000;
-const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 
 function abortAfter(ms) {
