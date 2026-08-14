@@ -3,6 +3,7 @@ import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
 
 function json(res, status, payload) {
@@ -132,6 +133,24 @@ async function commitIntakeEvent(eventId) {
   });
 }
 
+async function sendTelegramMessage(chatId, text) {
+  if (!TELEGRAM_BOT_TOKEN || chatId == null) return { sent: false, reason: 'telegram_bot_not_configured' };
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.ok === false) {
+      return { sent: false, reason: 'telegram_send_failed' };
+    }
+    return { sent: true };
+  } catch {
+    return { sent: false, reason: 'telegram_send_error' };
+  }
+}
+
 function authorizedTelegram(req) {
   if (!TELEGRAM_WEBHOOK_SECRET) return true;
   return req.headers['x-telegram-bot-api-secret-token'] === TELEGRAM_WEBHOOK_SECRET;
@@ -159,6 +178,7 @@ export async function handleHealth(_req, res) {
     ok: true,
     service: 'aqarat-intake',
     version: 'v1',
+    telegram_token_configured: Boolean(TELEGRAM_BOT_TOKEN),
   });
 }
 
@@ -190,7 +210,11 @@ export async function handleTelegramUpdate(req, res) {
     const payload = await readBody(req);
     const event = telegramUpdateToIntakeEvent(payload);
     const result = await processEvent(event);
-    return json(res, 200, result);
+    const acknowledgement = await sendTelegramMessage(
+      event.chat_id,
+      '✅ وصلت رسالتك. تم تسجيل البيانات وبدء المعالجة في Aqarat OS.',
+    );
+    return json(res, 200, { ...result, acknowledgement });
   } catch (error) {
     const status = error.status === 422 ? 422 : error.status === 401 || error.status === 403 ? 502 : 500;
     console.error(JSON.stringify({
