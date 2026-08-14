@@ -40,3 +40,4 @@ jobs:
           done
           echo "DISCOVERY_FAILURE_PASSES=$failures"
           exit "$failures"
+# queue-drain verification after schema and adapter hardening
