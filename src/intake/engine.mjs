@@ -32,7 +32,8 @@ function normalizedText(value) {
 }
 
 function firstMatch(text, patterns) {
-  for (const pattern of patterns) {
+  const list = Array.isArray(patterns) ? patterns : [patterns];
+  for (const pattern of list) {
     const match = text.match(pattern);
     if (match) return match;
   }
