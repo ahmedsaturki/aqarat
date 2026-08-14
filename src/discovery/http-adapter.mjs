@@ -99,9 +99,9 @@ export async function fetchPublicSource(url, options = {}) {
 
       const contentType = response.headers.get('content-type') || '';
       if (!response.ok) throw new Error(`source_http_${response.status}`);
-      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
-        throw new Error('unsupported_content_type');
-      }
+      const isHtml = contentType.includes('text/html') || contentType.includes('application/xhtml+xml');
+      const isJson = contentType.includes('application/json') || contentType.includes('+json');
+      if (!isHtml && !isJson) throw new Error('unsupported_content_type');
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('source_body_unavailable');
@@ -125,7 +125,29 @@ export async function fetchPublicSource(url, options = {}) {
         offset += chunk.byteLength;
       }
 
-      const html = new TextDecoder().decode(bytes);
+      const bodyText = new TextDecoder().decode(bytes);
+      if (isJson) {
+        let json;
+        try { json = JSON.parse(bodyText); } catch { throw new Error('source_invalid_json'); }
+        const text = typeof json === 'string' ? json : JSON.stringify(json);
+        return {
+          source_url: target.href,
+          canonical_url: response.url || target.href,
+          fetched_at: new Date().toISOString(),
+          status: 'discovered',
+          content_hash: sha256(bodyText),
+          extracted_payload: {
+            title: null,
+            description: null,
+            image: null,
+            json_ld: [],
+            text: text.slice(0, 50000),
+            data: json,
+          },
+        };
+      }
+
+      const html = bodyText;
       const canonical = metaContent(html, 'og:url') || response.url || target.href;
 
       return {
