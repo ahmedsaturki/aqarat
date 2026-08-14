@@ -51,9 +51,7 @@ function parseNumber(value) {
 }
 
 function parseArea(text) {
-  const match = firstMatch(text, [
-    /(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)\b/i
-  ]);
+  const match = firstMatch(text, /(?:^|\s)(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)\b/i);
   return match ? parseNumber(match[1]) : null;
 }
 
@@ -82,23 +80,23 @@ function parseFloor(text) {
 }
 
 function parsePrice(text) {
-  const match = firstMatch(text, [
-    /(?:ب|بسعر|السعر|price)\s*(\d[\d,،]*(?:\.\d+)?)\s*(مليون|مليار|ألف|الف|million|billion|k)?/i,
-    /(\d[\d,،]*(?:\.\d+)?)\s*(مليون|مليار|ألف|الف|million|billion|k)?\s*(?:جنيه|ج|egp|pounds?)?/i
+  const priced = firstMatch(text, [
+    /(\d[\d,،]*(?:\.\d+)?)\s*(مليون|مليار|ألف|الف|million|billion|k)\b/i,
+    /(?:للبيع|بيع|السعر|بسعر|price)\s*[:：-]?\s*(\d[\d,،]*(?:\.\d+)?)/i,
+    /(?:جنيه|ج|egp|pounds?)\s*(\d[\d,،]*(?:\.\d+)?)/i
   ]);
-  if (!match) return { price: null, currency: null };
 
-  let amount = parseNumber(match[1]);
-  const unit = normalizedText(match[2] || '');
+  if (!priced) return { price: null, currency: null };
+
+  let amount = parseNumber(priced[1]);
   if (amount == null) return { price: null, currency: null };
+
+  const unit = normalizedText(priced[2] || '');
   if (unit === 'مليون' || unit === 'million') amount *= 1_000_000;
   else if (unit === 'مليار' || unit === 'billion') amount *= 1_000_000_000;
   else if (unit === 'الف' || unit === 'k') amount *= 1_000;
 
-  return {
-    price: amount,
-    currency: 'EGP'
-  };
+  return { price: amount, currency: 'EGP' };
 }
 
 function parseTransactionType(text) {
