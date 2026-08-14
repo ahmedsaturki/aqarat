@@ -81,11 +81,10 @@ function parseFloor(text) {
 
 function parsePrice(text) {
   const priced = firstMatch(text, [
-    /(\d[\d,،]*(?:\.\d+)?)\s*(مليون|مليار|ألف|الف|million|billion|k)\b/i,
+    /(\d[\d,،]*(?:\.\d+)?)\s*(مليون|مليار|ألف|الف|million|billion|k)/i,
     /(?:للبيع|بيع|السعر|بسعر|price)\s*[:：-]?\s*(\d[\d,،]*(?:\.\d+)?)/i,
     /(?:جنيه|ج|egp|pounds?)\s*(\d[\d,،]*(?:\.\d+)?)/i
   ]);
-
   if (!priced) return { price: null, currency: null };
 
   let amount = parseNumber(priced[1]);
