@@ -11,9 +11,9 @@ function textOf(value) {
 function normalizePhone(value) {
   const raw = textOf(value);
   if (!raw) return null;
-  const digits = raw.replace(/[^\d+]/g, '');
+  const digits = raw.replace(/\D/g, '');
   if (/^01\d{9}$/.test(digits)) return `+2${digits}`;
-  if (/^20?1\d{9}$/.test(digits)) return digits.startsWith('+') ? digits : `+${digits}`;
+  if (/^201\d{9}$/.test(digits)) return `+${digits}`;
   return null;
 }
 
