@@ -9,7 +9,7 @@ function hostnameMatches(hostname, allowedDomains) {
 }
 
 export function assertDiscoverySourceAllowed(source, targetUrl) {
-  const policy = source?.crawl_policy ?? {};
+  const policy = source?.crawl_policy ?? source?.config ?? {};
 
   if (!source?.enabled) throw new Error('discovery_source_not_enabled');
   if (policy.automation_allowed !== true) {
@@ -29,7 +29,9 @@ export function assertDiscoverySourceAllowed(source, targetUrl) {
   }
 
   if (url.username || url.password) throw new Error('discovery_url_credentials_forbidden');
-  if (policy.require_permission_reference === true && !source.metadata?.permission_reference) {
+
+  const permissionReference = source?.metadata?.permission_reference ?? policy.permission_reference;
+  if (policy.require_permission_reference === true && !permissionReference) {
     throw new Error('discovery_permission_reference_required');
   }
 
