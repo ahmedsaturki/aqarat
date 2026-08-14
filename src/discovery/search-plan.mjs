@@ -29,7 +29,7 @@ export function buildSadatSearchPlan({ queries = [], maxQueries = 10 } = {}) {
     ...ENGLISH_QUERY_TEMPLATES,
   ]);
 
-  return seeds.slice(0, Math.max(1, Math.min(Number(maxQueries) || 10, 20))).map((query, index) => ({
+  return seeds.slice(0, Math.max(1, Math.min(Number(maxQueries) || 10, 11))).map((query, index) => ({
     id: `sadat-q-${index + 1}`,
     city: 'Sadat City',
     country: 'Egypt',
