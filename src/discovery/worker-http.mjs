@@ -88,9 +88,9 @@ async function insertEntities(job, evidence, candidates) {
       source: candidate.source_url,
     })).digest('hex'),
   }));
-  const rows = await sb('/rest/v1/discovery_entities', {
+  const rows = await sb('/rest/v1/discovery_entities?on_conflict=entity_type,external_key', {
     method: 'POST',
-    headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
     body: JSON.stringify(payload),
   });
   return Array.isArray(rows) ? rows.length : 0;
