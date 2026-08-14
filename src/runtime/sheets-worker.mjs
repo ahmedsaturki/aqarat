@@ -107,16 +107,12 @@ async function deliverProjection(projection) {
     throw error;
   }
 
-  const headers = { 'content-type': 'application/json' };
-  if (GOOGLE_SHEETS_WEBHOOK_SECRET) {
-    headers['x-aqarat-sheet-secret'] = GOOGLE_SHEETS_WEBHOOK_SECRET;
-  }
-
   const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
     method: 'POST',
-    headers,
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       operation: 'upsert_property',
+      secret: GOOGLE_SHEETS_WEBHOOK_SECRET,
       external_key: projection.external_key,
       columns: projection.columns,
       values: projection.values,
@@ -154,23 +150,24 @@ export async function processOneSheetsJob(workerId = 'vercel-sheets-worker') {
     });
 
     const transportResult = await deliverProjection(projection);
+    const now = new Date().toISOString();
 
     await updateJob(job.id, {
       status: 'succeeded',
       result: transportResult ?? { ok: true },
-      finished_at: new Date().toISOString(),
+      finished_at: now,
       locked_at: null,
       locked_by: null,
       lease_expires_at: null,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
 
     await updateProjection(propertyId, {
       status: 'synced',
       external_key: projection.external_key,
       last_error: null,
-      last_synced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_synced_at: now,
+      updated_at: now,
     });
 
     return { processed: true, job_id: job.id, property_id: propertyId, result: transportResult ?? null };
@@ -178,11 +175,12 @@ export async function processOneSheetsJob(workerId = 'vercel-sheets-worker') {
     const message = error?.message || 'sheets_projection_failed';
     const permanent = error?.code === 'CONFIG_MISSING';
     const terminal = permanent || Number(job.attempts || 0) >= Number(job.max_attempts || 5);
+    const now = new Date().toISOString();
     const patch = terminal
       ? {
           status: 'failed',
           error_message: message,
-          finished_at: new Date().toISOString(),
+          finished_at: now,
         }
       : {
           status: 'queued',
@@ -195,13 +193,13 @@ export async function processOneSheetsJob(workerId = 'vercel-sheets-worker') {
       locked_at: null,
       locked_by: null,
       lease_expires_at: null,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
 
     await updateProjection(propertyId, {
       status: terminal ? 'error' : 'pending',
       last_error: message,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
 
     return { processed: false, job_id: job.id, property_id: propertyId, error: message, terminal };
