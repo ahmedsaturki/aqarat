@@ -17,21 +17,10 @@ test('resolver groups duplicate property candidates and chooses highest-confiden
 test('pipeline blocks external publishing when review requires human approval', () => {
   const result = buildPipelineDecision({
     entity: {
-      id: 'p1',
-      entity_type: 'property',
-      name: 'شقة 120 متر',
-      city: 'مدينة السادات',
-      confidence: 0.9,
-      provenance_count: 2,
-      content_variant_id: 'cv1',
+      id: 'p1', entity_type: 'property', name: 'شقة 120 متر', city: 'مدينة السادات', confidence: 0.9,
+      provenance_count: 2, content_variant_id: 'cv1', primary_phone: '+201000925451',
     },
-    leadSignal: {
-      has_contact: true,
-      explicit_intent_score: 0.9,
-      property_interest_score: 0.8,
-      sadat_city_score: 1,
-      recency_score: 0.9,
-    },
+    leadSignal: { has_contact: true, explicit_intent_score: 0.9, property_interest_score: 0.8, sadat_city_score: 1, recency_score: 0.9 },
     content: 'شقة 120 متر بمدينة السادات. السعر مثبت بالمصدر.',
     channel: 'facebook',
   });
@@ -42,25 +31,14 @@ test('pipeline blocks external publishing when review requires human approval', 
   assert.equal(result.ready_for_publication, false);
 });
 
-test('pipeline can approve owned telegram content with evidence', () => {
+test('pipeline can approve owned telegram marketing content with evidence', () => {
   const result = buildPipelineDecision({
     entity: {
-      id: 'p2',
-      entity_type: 'property',
-      name: 'شقة للبيع',
-      city: 'مدينة السادات',
-      confidence: 0.9,
-      provenance_count: 2,
-      content_variant_id: 'cv2',
+      id: 'p2', entity_type: 'property', property_type: 'land', transaction_type: 'sale',
+      city: 'مدينة السادات', district: 'المنطقة 21', area_m2: 622, price: 7100000, currency: 'EGP',
+      confidence: 0.9, provenance_count: 2, content_variant_id: 'cv2', primary_phone: '+201000925451',
     },
-    leadSignal: {
-      has_contact: true,
-      explicit_intent_score: 0.8,
-      property_interest_score: 0.8,
-      sadat_city_score: 1,
-      recency_score: 1,
-    },
-    content: 'شقة للبيع في مدينة السادات. تفاصيل موثقة بالمصدر.',
+    leadSignal: { has_contact: true, explicit_intent_score: 0.8, property_interest_score: 0.8, sadat_city_score: 1, recency_score: 1 },
     channel: 'telegram',
   });
 
@@ -68,4 +46,19 @@ test('pipeline can approve owned telegram content with evidence', () => {
   assert.equal(result.publication.status, 'queued');
   assert.equal(result.publication.requires_human, false);
   assert.equal(result.ready_for_publication, true);
+  assert.match(result.marketing_content.body, /لارا للتسويق العقاري/);
+  assert.doesNotMatch(result.marketing_content.body, /01000925451|201000925451/);
+  assert.equal(result.marketing_content.psychology_policy, 'ethical_influence');
+});
+
+test('pipeline rejects manually supplied content that leaks seller phone', () => {
+  assert.throws(
+    () => buildPipelineDecision({
+      entity: { city: 'مدينة السادات', confidence: 0.9, provenance_count: 1, primary_phone: '+201000925451' },
+      leadSignal: {},
+      content: 'أرض للبيع للتواصل 01000925451',
+      channel: 'telegram',
+    }),
+    /public_marketing_privacy_violation/,
+  );
 });
