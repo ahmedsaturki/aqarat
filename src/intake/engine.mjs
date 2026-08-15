@@ -42,9 +42,10 @@ function parseNumber(value) {
 }
 
 function parseArea(text) {
-  const match = firstMatch(normalizeDigits(text), [
+  const normalized = normalizeDigits(text);
+  const match = firstMatch(normalized, [
     /(?:مساح(?:ة|ه)|مساحة)\s*(?:=|:|-)?\s*(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)/i,
-    /(?:^|\s)(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)/i
+    /(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)/i
   ]);
   return match ? parseNumber(match[1]) : null;
 }
@@ -91,8 +92,8 @@ function parseFloor(text) {
 function parsePrice(text) {
   const normalized = normalizeDigits(text);
   let match = firstMatch(normalized, [
-    /(\d[\d,]*(?:\.\d+)?)\s*(مليار|billion)\s*(\d{1,3})\s*(?:جنيه|ج|egp|pounds?)?/i,
-    /(\d[\d,]*(?:\.\d+)?)\s*(مليون|million)\s*(\d{1,3})\s*(?:جنيه|ج|egp|pounds?)?/i,
+    /(\d[\d,]*(?:\.\d+)?)\s*(مليار|billion)\s*([1-9]\d{0,2})\s*(?:جنيه|ج|egp|pounds?)?/i,
+    /(\d[\d,]*(?:\.\d+)?)\s*(مليون|million)\s*([1-9]\d{0,2})\s*(?:جنيه|ج|egp|pounds?)?/i,
     /(\d[\d,]*(?:\.\d+)?)\s*(مليون|مليار|ألف|الف|million|billion|k)/i,
     /(?:للبيع|بيع|مطلوب|مطلوب\s*نهائي|نهائي|السعر|بسعر|price)\s*[:：-]?\s*(\d[\d,]*(?:\.\d+)?)/i,
     /(?:جنيه|ج|egp|pounds?)\s*(\d[\d,]*(?:\.\d+)?)/i
@@ -108,7 +109,6 @@ function parsePrice(text) {
   else if (unit === 'مليار' || unit === 'billion') amount *= 1_000_000_000;
   else if (unit === 'الف' || unit === 'k') amount *= 1_000;
 
-  // Egyptian real-estate shorthand: "7 million 100" means 7,100,000.
   if (tail != null && (unit === 'مليون' || unit === 'million')) amount += tail * 1_000;
   if (tail != null && (unit === 'مليار' || unit === 'billion')) amount += tail * 1_000_000;
 
@@ -237,7 +237,8 @@ export function buildIntakeEvent({ channel = 'other', externalEventId = null, se
 }
 
 export function propertyDedupKey(candidate) {
-  const base = [normalizedText(candidate.city || ''), normalizedText(candidate.property_type || ''), normalizedText(candidate.transaction_type || '')];
-  if (candidate.parcel_number != null) return [...base, `parcel:${candidate.parcel_number}`].join('|');
-  return [...base, normalizedText(candidate.district || ''), normalizedText(candidate.neighborhood || ''), String(candidate.area_m2 ?? ''), String(candidate.price ?? ''), String(candidate.bedrooms ?? ''), String(candidate.bathrooms ?? '')].join('|');
+  const base = [normalizedText(candidate.city || ''), normalizedText(candidate.district || ''), normalizedText(candidate.neighborhood || ''),
+    normalizedText(candidate.property_type || ''), normalizedText(candidate.transaction_type || ''), String(candidate.parcel_number ?? ''),
+    String(candidate.area_m2 ?? ''), String(candidate.price ?? ''), String(candidate.bedrooms ?? ''), String(candidate.bathrooms ?? '')];
+  return base.join('|');
 }
