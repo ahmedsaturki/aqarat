@@ -63,7 +63,7 @@ export function buildMarketingContent(entity, channel = 'telegram', context = {}
     ...facts,
     body,
     persuasion,
-    public_contact_policy: 'configurable_brand_only',
+    public_contact_policy: 'lara_brand_only',
     public_price_policy: 'never_publish_internal_price',
     style: 'sales_marketing',
     psychology_policy: 'ethical_influence',
