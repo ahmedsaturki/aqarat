@@ -1,11 +1,27 @@
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+const ADMIN_SECRET = process.env.TELEGRAM_ADMIN_STATUS_SECRET || '';
+const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
 
 function json(res, status, payload) {
   res.statusCode = status;
   res.setHeader('content-type', 'application/json; charset=utf-8');
   res.setHeader('cache-control', 'no-store');
   res.end(JSON.stringify(payload));
+}
+
+function safeEqual(expected, actual) {
+  const a = Buffer.from(String(expected || ''));
+  const b = Buffer.from(String(actual || ''));
+  if (!a.length || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+function authorized(req) {
+  if (!ADMIN_SECRET) return false;
+  return safeEqual(ADMIN_SECRET, req.headers['x-aqarat-telegram-admin-secret']);
 }
 
 async function telegram(method, body = {}) {
@@ -26,10 +42,12 @@ async function telegram(method, body = {}) {
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return json(res, 405, { ok: false, error: 'method_not_allowed' });
-  if (!TOKEN) return json(res, 503, { ok: false, token_configured: false, webhook_secret_configured: Boolean(WEBHOOK_SECRET), error: 'TELEGRAM_BOT_TOKEN_not_configured' });
+  if (!authorized(req)) return json(res, 401, { ok: false, error: 'admin_unauthorized' });
+  if (!TOKEN) return json(res, 503, { ok: false, error: 'TELEGRAM_BOT_TOKEN_not_configured' });
+  if (!PUBLIC_BASE_URL) return json(res, 503, { ok: false, error: 'PUBLIC_BASE_URL_not_configured' });
 
   try {
-    const base = `https://${req.headers.host}/api/telegram/update`;
+    const base = `${PUBLIC_BASE_URL}/api/telegram/update`;
     const me = await telegram('getMe');
     const before = await telegram('getWebhookInfo');
     const configuredUrl = before?.result?.url || '';
@@ -46,23 +64,15 @@ export default async function handler(req, res) {
     const after = await telegram('getWebhookInfo');
     return json(res, 200, {
       ok: true,
-      token_configured: true,
-      webhook_secret_configured: Boolean(WEBHOOK_SECRET),
-      bot: {
-        id: me?.result?.id ?? null,
-        username: me?.result?.username ?? null,
-        first_name: me?.result?.first_name ?? null,
-      },
       webhook: {
-        expected_url: base,
-        url: after?.result?.url || '',
+        configured: (after?.result?.url || '') === base,
         pending_update_count: after?.result?.pending_update_count ?? 0,
         last_error_date: after?.result?.last_error_date ?? null,
         last_error_message: after?.result?.last_error_message ?? null,
       },
     });
   } catch (error) {
-    console.error(JSON.stringify({ event: 'telegram_status_error', error: error.message, body: error.body ?? null }));
-    return json(res, 502, { ok: false, token_configured: true, error: error.message, telegram: error.body ?? null });
+    console.error(JSON.stringify({ event: 'telegram_status_error', error: error.message }));
+    return json(res, 502, { ok: false, error: 'telegram_upstream_unavailable' });
   }
 }
