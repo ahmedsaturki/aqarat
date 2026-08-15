@@ -75,7 +75,20 @@ export function planPublication({ contentVariantId, channel, destination, review
 
 export function buildPipelineDecision({ entity, leadSignal = {}, content = null, channel = 'telegram', contentContext = {} }) {
   const lead = buildLead(leadSignal);
-  const marketingContent = content || buildMarketingContent(entity, channel, contentContext);
+  const marketingContent = content
+    ? {
+        ...buildFactualContent(entity, { channel, ...contentContext }),
+        body: content,
+        persuasion: buildPersuasionPlan(entity, { channel, ...contentContext }),
+        public_contact_policy: 'lara_brand_only',
+        style: 'sales_marketing',
+        psychology_policy: 'ethical_influence',
+      }
+    : buildMarketingContent(entity, channel, contentContext);
+
+  const safety = assertPublicCopySafe(marketingContent.body, entity, channel);
+  if (!safety.ok) throw new Error('public_marketing_privacy_violation');
+
   const review = gateContent({
     body: marketingContent.body,
     confidence: entity?.confidence,
