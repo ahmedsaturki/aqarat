@@ -85,7 +85,8 @@ export function assertPublicCopySafe(copy, entity, channel) {
   const candidates = [
     entity?.phone, entity?.primary_phone, entity?.phones, entity?.contact_name, entity?.owner_name,
     entity?.seller_name, entity?.office_name, entity?.broker_name, entity?.email, entity?.source_url,
-    entity?.sender_id, entity?.chat_id, entity?.person_id, entity?.contact_id, entity?.property_id,
+    entity?.source_event_id, entity?.source_record_id, entity?.raw_text, entity?.sender_id, entity?.chat_id,
+    entity?.person_id, entity?.contact_id, entity?.property_id, entity?.lead_id,
   ].flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean).map(String);
 
   for (const value of candidates) {
@@ -94,21 +95,29 @@ export function assertPublicCopySafe(copy, entity, channel) {
     if (value.length >= 4 && normalizedText.includes(value)) forbiddenValues.push(value);
   }
 
+  // A public copy may contain only Lara's configured contact details.
+  // Detect standalone phone-like sequences as an additional defense against
+  // accidental leakage from an unrelated internal contact not present on the entity object.
+  const phoneLike = normalizedText.match(/(?:\+?20|0)?1[0125]\d{8}/g) ?? [];
   const laraNumbers = [LARA.phone, LARA.whatsapp].filter(Boolean).map((v) => String(v));
-  for (const number of laraNumbers) {
+  const laraDigits = laraNumbers.map((v) => v.replace(/\D/g, '')).filter((v) => v.length >= 8);
+  for (const number of phoneLike) {
     const digits = number.replace(/\D/g, '');
-    if (digits.length >= 8 && !normalizedText.replace(/\D/g, '').includes(digits)) {
-      // CTA may intentionally use website/brand text instead of a phone number.
-      continue;
+    if (digits.length >= 8 && !laraDigits.some((lara) => digits.includes(lara) || lara.includes(digits))) {
+      forbiddenValues.push(number);
     }
   }
 
-  const ok = forbiddenValues.length === 0 && normalizedText.length > 0;
+  const hasBrand = normalizedText.includes(LARA.brand);
+  const publicChannel = MARKETING_CHANNELS.has(String(channel).toLowerCase());
+  const ok = forbiddenValues.length === 0 && normalizedText.length > 0 && (!publicChannel || hasBrand);
   return {
     ok,
     forbidden_values: [...new Set(forbiddenValues)],
     channel,
-    audience: 'public',
+    audience: publicChannel ? 'public' : 'internal',
     policy: 'lara_brand_only',
+    has_lara_brand: hasBrand,
+    phone_leak_scan: true,
   };
 }
