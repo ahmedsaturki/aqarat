@@ -13,7 +13,7 @@ const ANGLES = {
 const CHANNEL_TONES = {
   telegram: { cta: 'للتفاصيل والتفاوض تواصل مع لارا للتسويق العقاري.', rhythm: 'direct' },
   website: { cta: 'اطلب التفاصيل والتقييم المناسب لاحتياجك من لارا للتسويق العقاري.', rhythm: 'informative' },
-  facebook: { cta: 'ابعت لنا رسالة لمعرفة التفاصيل والعروض المتاحة.', rhythm: 'conversational' },
+  facebook: { cta: 'ابعت لنا رسالة إلى لارا للتسويق العقاري لمعرفة التفاصيل والعروض المتاحة.', rhythm: 'conversational' },
   whatsapp: { cta: 'للتفاصيل والتنسيق تواصل مع لارا للتسويق العقاري.', rhythm: 'concise' },
   linkedin: { cta: 'للتفاصيل والتواصل المهني، تواصل مع لارا للتسويق العقاري.', rhythm: 'professional' },
   classified: { cta: 'للتفاصيل والتواصل تواصل مع لارا للتسويق العقاري.', rhythm: 'concise' },
