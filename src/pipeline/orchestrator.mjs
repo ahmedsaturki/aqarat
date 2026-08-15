@@ -1,6 +1,7 @@
 import { scorePropertyMatch, chooseCanonical } from '../intelligence/entity-resolver.mjs';
 import { scoreLead } from '../intelligence/lead-scorer.mjs';
 import { buildContentBrief } from '../content/content-planner.mjs';
+import { buildFactualDraft } from '../content/factual-draft.mjs';
 import { reviewContent } from '../review/policy.mjs';
 import { buildPublicationJob } from '../publishing/policy.mjs';
 
@@ -11,18 +12,19 @@ export function resolveCandidates(candidates = []) {
     for (const group of groups) {
       const match = scorePropertyMatch(candidate, group[0]);
       if (match.score >= 0.85) {
-        group.push(candidate);
+        group.push({ ...candidate, match_score: match.score, match_reasons: match.reasons });
         attached = true;
         break;
       }
     }
-    if (!attached) groups.push([candidate]);
+    if (!attached) groups.push([{ ...candidate, match_score: 1, match_reasons: ['first_candidate'] }]);
   }
 
   return groups.map((group) => ({
     canonical: chooseCanonical(group),
     members: group,
     match_count: group.length,
+    match_scores: group.map(({ match_score, match_reasons, ...rest }) => ({ id: rest.id ?? null, score: match_score, reasons: match_reasons })),
   }));
 }
 
@@ -32,6 +34,10 @@ export function buildLead(signal = {}) {
 
 export function prepareContent(entity, channel = 'telegram') {
   return buildContentBrief(entity, channel);
+}
+
+export function buildFactualContent(entity, context = {}) {
+  return buildFactualDraft(entity, context);
 }
 
 export function gateContent({ body, confidence, provenanceCount, channel }) {
@@ -47,12 +53,13 @@ export function planPublication({ contentVariantId, channel, destination, review
   });
 }
 
-export function buildPipelineDecision({ entity, leadSignal, content, channel = 'telegram' }) {
+export function buildPipelineDecision({ entity, leadSignal = {}, content = null, channel = 'telegram', contentContext = {} }) {
   const lead = buildLead(leadSignal);
+  const factualContent = content || buildFactualContent(entity, { channel, ...contentContext });
   const review = gateContent({
-    body: content,
+    body: factualContent.body,
     confidence: entity?.confidence,
-    provenanceCount: entity?.provenance_count,
+    provenanceCount: entity?.provenance_count ?? factualContent.provenance.length,
     channel,
   });
   const publication = planPublication({
@@ -65,6 +72,7 @@ export function buildPipelineDecision({ entity, leadSignal, content, channel = '
   return {
     lead,
     content_brief: prepareContent(entity, channel),
+    factual_content: factualContent,
     review,
     publication,
     ready_for_publication: publication.status === 'queued',
