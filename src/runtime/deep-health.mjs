@@ -71,14 +71,28 @@ async function checkGemini({ apiKey, model, baseUrl }) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: 'Aqarat health check. Reply with OK.' }] }],
-        generationConfig: { maxOutputTokens: 8 },
+        systemInstruction: { parts: [{ text: 'You are an Aqarat dependency health checker. Return compact JSON only.' }] },
+        contents: [{ role: 'user', parts: [{ text: 'Return exactly {"ok":true}.' }] }],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 16,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'object',
+            properties: { ok: { type: 'boolean' } },
+            required: ['ok'],
+          },
+        },
       }),
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) return { status: 'error', code: response.status };
-    const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return { status: text ? 'ok' : 'degraded', model, response_chars: text.length };
+    const parts = payload?.candidates?.[0]?.content?.parts;
+    const text = Array.isArray(parts) ? parts.map((part) => part?.text || '').join('') : '';
+    const finishReason = payload?.candidates?.[0]?.finishReason || null;
+    return text
+      ? { status: 'ok', model, response_chars: text.length }
+      : { status: 'degraded', model, response_chars: 0, finish_reason: finishReason };
   } catch (error) {
     return { status: 'error', error: redactError(error) };
   }
