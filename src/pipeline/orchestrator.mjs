@@ -1,5 +1,6 @@
 import { scorePropertyMatch, chooseCanonical } from '../intelligence/entity-resolver.mjs';
 import { scoreLead } from '../intelligence/lead-scorer.mjs';
+import { classifyInterestSignal, buildInterestProfile } from '../intelligence/market-graph.mjs';
 import { buildContentBrief } from '../content/content-planner.mjs';
 import { buildFactualDraft } from '../content/factual-draft.mjs';
 import { buildPersuasionPlan } from '../content/sales-strategy.mjs';
@@ -32,6 +33,14 @@ export function resolveCandidates(candidates = []) {
 
 export function buildLead(signal = {}) {
   return scoreLead(signal);
+}
+
+export function classifyInterest(signal = {}) {
+  return classifyInterestSignal(signal);
+}
+
+export function prepareInterestProfile({ personId, signal, property, observedAt } = {}) {
+  return buildInterestProfile({ personId, signal, property, observedAt });
 }
 
 export function prepareContent(entity, channel = 'telegram') {
@@ -73,12 +82,11 @@ export function planPublication({ contentVariantId, channel, destination, review
   });
 }
 
-export function buildPipelineDecision({ entity, leadSignal = {}, content = null, channel = 'telegram', contentContext = {} }) {
+export function buildPipelineDecision({ entity, leadSignal = {}, interestSignal = null, personId = null, content = null, channel = 'telegram', contentContext = {} }) {
   const lead = buildLead(leadSignal);
+  const interest = interestSignal ? classifyInterest({ text: interestSignal.text, property: entity, channel }) : null;
+  const interest_profile = interest && personId ? prepareInterestProfile({ personId, signal: interest, property: entity }) : null;
 
-  // Public output must always be produced by the controlled marketing renderer.
-  // A caller-supplied body is treated only as an upstream draft signal and can
-  // never bypass the sales, privacy, and Lara-contact policies.
   const marketingContent = buildMarketingContent(entity, channel, {
     ...contentContext,
     upstream_draft_present: content != null && String(content).trim() !== '',
@@ -103,6 +111,8 @@ export function buildPipelineDecision({ entity, leadSignal = {}, content = null,
 
   return {
     lead,
+    interest,
+    interest_profile,
     content_brief: prepareContent(entity, channel),
     marketing_content: marketingContent,
     review,
