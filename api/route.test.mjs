@@ -28,6 +28,8 @@ test('catch-all router serves health with security headers and correlation id', 
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
   assert.equal(response.headers.get('cross-origin-resource-policy'), 'same-origin');
   assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.match(String(response.headers.get('x-response-time-ms')), /^\d+(?:\.\d+)?$/);
+  assert.match(String(response.headers.get('server-timing')), /^aqarat;dur=\d+(?:\.\d+)?$/);
 });
 
 test('catch-all router preserves a valid caller correlation id', async () => {

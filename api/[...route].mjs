@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { installResponseTelemetry, logStructuredError } from '../src/runtime/observability.mjs';
 
 const HANDLERS = {
   'healthz': () => import('../src/api-routes/healthz.mjs'),
@@ -57,6 +58,7 @@ export default async function handler(req, res) {
   applySecurityHeaders(res, correlationId);
   req.aqaratCorrelationId = correlationId;
   const route = routeFromRequest(req);
+  installResponseTelemetry(req, res, { route, correlationId });
   const load = HANDLERS[route];
   if (!load) return json(res, 404, { ok: false, error: 'route_not_found' }, correlationId);
 
@@ -64,7 +66,7 @@ export default async function handler(req, res) {
     const module = await load();
     return module.default(req, res);
   } catch (error) {
-    console.error(JSON.stringify({ event: 'api_route_error', route, correlation_id: correlationId, error: error?.message || String(error) }));
+    logStructuredError('api_route_error', { route, correlation_id: correlationId, error: error?.message || String(error) });
     return json(res, 500, { ok: false, error: 'internal_server_error' }, correlationId);
   }
 }

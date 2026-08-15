@@ -1,5 +1,6 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
+import { MAX_INTAKE_TEXT_LENGTH } from '../intake/engine.mjs';
 import { MAX_BODY_BYTES, OUTBOUND_TIMEOUT_MS } from './runtime-config.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -157,13 +158,28 @@ function authorizedTelegram(req) {
   return Boolean(TELEGRAM_WEBHOOK_SECRET) && safeEqual(TELEGRAM_WEBHOOK_SECRET, req.headers['x-telegram-bot-api-secret-token']);
 }
 
+export function validateIntakeEventContract(event) {
+  const errors = [];
+  const rawText = event?.raw_text;
+  const channel = String(event?.channel || '').toLowerCase();
+  const validation = event?.parsed_payload?.validation;
+  if (typeof rawText !== 'string') errors.push('raw_text_type_invalid');
+  else if (!rawText.trim()) errors.push('raw_text_required');
+  else if (rawText.length > MAX_INTAKE_TEXT_LENGTH) errors.push('raw_text_too_long');
+  if (!ALLOWED_INTAKE_CHANNELS.has(channel)) errors.push('channel_invalid');
+  if (!event?.parsed_payload?.property) errors.push('property_payload_required');
+  if (typeof validation?.valid !== 'boolean') errors.push('validation_payload_required');
+  return { valid: errors.length === 0, errors, channel };
+}
+
 async function processEvent(event) {
-  if (!event?.raw_text || !event?.channel || !ALLOWED_INTAKE_CHANNELS.has(String(event.channel).toLowerCase())) {
+  const contract = validateIntakeEventContract(event);
+  if (!contract.valid) {
     const error = new Error('invalid_intake_contract');
     error.status = 422;
     throw error;
   }
-  const stored = await persistIntakeEvent(event);
+  const stored = await persistIntakeEvent({ ...event, channel: contract.channel });
   const result = await commitIntakeEvent(stored.id);
   return { ok: true, intake_event_id: stored.id, result };
 }
