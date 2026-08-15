@@ -1,7 +1,17 @@
 {
   "rewrites": [
-    { "source": "/healthz", "destination": "/api/healthz" },
-    { "source": "/intake", "destination": "/api/intake" },
-    { "source": "/telegram/update", "destination": "/api/telegram/update" }
+    { "source": "/healthz", "destination": "/api/route?route=healthz" },
+    { "source": "/intake", "destination": "/api/route?route=intake" },
+    { "source": "/telegram/update", "destination": "/api/route?route=telegram/update" },
+    { "source": "/api/healthz/deep", "destination": "/api/route?route=healthz/deep" },
+    { "source": "/api/jobs/sheets", "destination": "/api/route?route=jobs/sheets" },
+    { "source": "/api/telegram/status", "destination": "/api/route?route=telegram/status" },
+    { "source": "/api/telegram/update", "destination": "/api/route?route=telegram/update" },
+    { "source": "/api/dashboard/action", "destination": "/api/route?route=dashboard/action" },
+    { "source": "/api/dashboard/data", "destination": "/api/route?route=dashboard/data" },
+    { "source": "/api/dashboard/discovery-submit", "destination": "/api/route?route=dashboard/discovery-submit" },
+    { "source": "/api/dashboard/intelligence", "destination": "/api/route?route=dashboard/intelligence" },
+    { "source": "/api/dashboard/login", "destination": "/api/route?route=dashboard/login" },
+    { "source": "/api/dashboard/overview", "destination": "/api/route?route=dashboard/overview" }
   ]
 }
