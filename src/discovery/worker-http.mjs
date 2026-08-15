@@ -21,10 +21,7 @@ function authHeaders(extra = {}) {
 
 async function sb(path, init = {}) {
   if (!SB_URL || !SB_KEY) throw new Error('discovery_worker_supabase_config_missing');
-  const response = await fetch(`${SB_URL}${path}`, {
-    ...init,
-    headers: authHeaders(init.headers),
-  });
+  const response = await fetch(`${SB_URL}${path}`, { ...init, headers: authHeaders(init.headers) });
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
@@ -109,17 +106,11 @@ async function aiEnrichEvidence(evidence) {
 
   try {
     const triage = await runDiscoveryTriageAgent(evidence, { timeoutMs: AI_TIMEOUT_MS });
-    if (!triage.enabled || !triage.output) {
-      return { enabled: true, triage, extraction: null, candidates: [] };
-    }
-
-    if (triage.output.is_listing !== true) {
-      return { enabled: true, triage, extraction: null, candidates: [], rejected: true, reason: 'ai_triage_not_listing' };
-    }
+    if (!triage.enabled || !triage.output) return { enabled: true, triage, extraction: null, candidates: [] };
+    if (triage.output.is_listing !== true) return { enabled: true, triage, extraction: null, candidates: [], rejected: true, reason: 'ai_triage_not_listing' };
 
     let candidates = Array.isArray(triage.output.candidates) ? triage.output.candidates : [];
     let extraction = null;
-
     if (!candidates.length) {
       extraction = await runPropertyExtractionAgent(evidence, { timeoutMs: AI_TIMEOUT_MS });
       candidates = extraction?.output?.candidates || [];
@@ -133,20 +124,12 @@ async function aiEnrichEvidence(evidence) {
       rejected: false,
     };
   } catch (error) {
-    // AI is an accelerator, never a hard dependency for discovery.
-    return {
-      enabled: true,
-      triage: null,
-      extraction: null,
-      candidates: [],
-      degraded: true,
-      error: error.message,
-    };
+    return { enabled: true, triage: null, extraction: null, candidates: [], degraded: true, error: error.message };
   }
 }
 
 async function insertEntities(job, evidence, candidates, aiMeta = null) {
-  if (!candidates.length) return 0;
+  if (!candidates.length) return [];
   const payload = candidates.map((candidate) => ({
     ...candidate,
     run_id: job.run_id,
@@ -177,7 +160,15 @@ async function insertEntities(job, evidence, candidates, aiMeta = null) {
     headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
     body: JSON.stringify(payload),
   });
-  return Array.isArray(rows) ? rows.length : 0;
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function materializeEntity(entityId) {
+  const rows = await sb('/rest/v1/rpc/materialize_discovery_entity', {
+    method: 'POST',
+    body: JSON.stringify({ p_entity_id: entityId }),
+  });
+  return rows ?? null;
 }
 
 async function finish(job, patch) {
@@ -204,26 +195,26 @@ async function main() {
       timeoutMs: Math.min(Number(source.config?.timeout_ms || 15000), 30000),
     });
     const evidence = await upsertEvidence(job, source, fetched);
+    const evidenceInput = evidence ? { ...fetched, ...evidence } : fetched;
 
-    const deterministicCandidates = extractCandidates(evidence ? { ...fetched, ...evidence } : fetched);
-    const aiResult = await aiEnrichEvidence(evidence ? { ...fetched, ...evidence } : fetched);
+    const deterministicCandidates = extractCandidates(evidenceInput);
+    const aiResult = await aiEnrichEvidence(evidenceInput);
+    const candidates = aiResult.rejected ? [] : (aiResult.candidates.length ? aiResult.candidates : deterministicCandidates);
+    const entityRows = await insertEntities(job, evidence, candidates, aiResult);
 
-    // Deterministic extraction remains authoritative. AI can reject generic pages
-    // and enrich candidates, but cannot bypass the evidence/validation pipeline.
-    const candidates = aiResult.rejected
-      ? []
-      : aiResult.candidates.length
-        ? aiResult.candidates
-        : deterministicCandidates;
-
-    const entities = await insertEntities(job, evidence, candidates, aiResult);
+    const materialized = [];
+    for (const entity of entityRows) {
+      const result = await materializeEntity(entity.id);
+      materialized.push(result);
+    }
 
     await finish(job, {
       status: 'succeeded',
       last_error: null,
       result: {
         evidence_id: evidence?.id ?? null,
-        entities_inserted: entities,
+        entities_inserted: entityRows.length,
+        entities_materialized: materialized.filter((x) => x?.ok).length,
         deterministic_candidates: deterministicCandidates.length,
         ai_candidates: aiResult.candidates.length,
         ai_enabled: aiResult.enabled,
@@ -233,7 +224,7 @@ async function main() {
       finished_at: new Date().toISOString(),
     });
 
-    console.log(JSON.stringify({ ok: true, claimed: true, job_id: job.id, evidence_id: evidence?.id ?? null, entities }));
+    console.log(JSON.stringify({ ok: true, claimed: true, job_id: job.id, evidence_id: evidence?.id ?? null, entities: entityRows.length, materialized: materialized.length }));
   } catch (error) {
     const attempts = Number(job.attempts || 1);
     const retryable = attempts < Number(job.max_attempts || 5) && !String(error.message).startsWith('discovery_source_policy_blocked');
