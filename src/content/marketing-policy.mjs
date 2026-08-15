@@ -31,7 +31,7 @@ function sanitizeAttributes(value) {
 
 export function buildPublicMarketingContext(entity, channel = 'telegram', strategyContext = {}) {
   const publicChannel = MARKETING_CHANNELS.has(channel);
-  const persuasion = buildPersuasionPlan(entity, { channel, ...strategyContext });
+  const persuasion = buildPersuasionPlan({ ...entity, price: undefined, currency: undefined }, { channel, ...strategyContext });
   const brand = getPublicBrandConfig();
 
   return {
@@ -75,10 +75,14 @@ export function renderSalesCopy(entity, channel = 'telegram', strategyContext = 
 }
 
 function containsPublicPricePattern(text) {
-  return /(?:\d[\d,\.\u066b\u066c\s]*\s*(?:جنيه|جنية|ج|egp|pounds?)|\d+(?:\.\d+)?\s*(?:مليون|مليار|ألف|الف|million|billion|mn|bn|k))(?!\s*متر)/iu.test(text);
+  return /(?:\d[\d,\.\u066b\u066c\s]*\s*(?:جنيه|جنية|ج|egp|pounds?)|\d+(?:\.\d+)?\s*(?:مليون|مليار|ألف|الف|million|billion|mn|bn|k))(?!\s*م(?:تر|²|2))/iu.test(text);
 }
 
-export function assertPublicCopySafe(copy, entity, channel) {
+export function assertPublicCopySafe(copy, entity, channel, options = {}) {
+  const {
+    checkPrice = true,
+    allowConfiguredContact = true,
+  } = options;
   const text = String(copy ?? '');
   const normalizedText = text.replace(/\s+/g, ' ').trim();
   const forbiddenValues = [];
@@ -96,7 +100,7 @@ export function assertPublicCopySafe(copy, entity, channel) {
     if (value.length >= 4 && normalizedText.includes(value)) forbiddenValues.push(value);
   }
 
-  if (containsPublicPricePattern(normalizedText)) forbiddenValues.push('public_price_pattern');
+  if (checkPrice && containsPublicPricePattern(normalizedText)) forbiddenValues.push('public_price_pattern');
 
   const phoneLike = normalizedText.match(/(?:\+?20|0)?1[0125]\d{8}/g) ?? [];
   const brand = getPublicBrandConfig();
@@ -104,7 +108,7 @@ export function assertPublicCopySafe(copy, entity, channel) {
   const publicDigits = publicNumbers.map((v) => v.replace(/\D/g, '')).filter((v) => v.length >= 8);
   for (const number of phoneLike) {
     const digits = number.replace(/\D/g, '');
-    if (digits.length >= 8 && !publicDigits.some((publicNumber) => digits.includes(publicNumber) || publicNumber.includes(digits))) {
+    if (!allowConfiguredContact || !publicDigits.some((publicNumber) => digits.includes(publicNumber) || publicNumber.includes(digits))) {
       forbiddenValues.push(number);
     }
   }
