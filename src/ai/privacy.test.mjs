@@ -1,13 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { redactForAI, redactEvidenceForAI, redactPropertyForAI } from './privacy.mjs';
+import { redactForAI, redactEvidenceForAI, redactPropertyForAI, assertAIInputSafe } from './privacy.mjs';
 
-test('redacts Egyptian phones and emails from free text', () => {
-  const result = redactForAI('اتصل 01000925451 أو mail@example.com');
-  assert.equal(result.includes('01000925451'), false);
-  assert.equal(result.includes('mail@example.com'), false);
-  assert.match(result, /PHONE_REDACTED/);
-  assert.match(result, /EMAIL_REDACTED/);
+test('redacts Egyptian ASCII, Arabic-Indic, and international phones from free text', () => {
+  const values = [
+    redactForAI('اتصل 01000925451 أو mail@example.com'),
+    redactForAI('اتصل ٠١٠٠٠٩٢٥٤٥١ أو owner@example.com'),
+    redactForAI('اتصل +201000925451 أو 00201000925451'),
+  ];
+  for (const result of values) {
+    assert.equal(/01000925451|٠١٠٠٠٩٢٥٤٥١|201000925451|00201000925451/.test(result), false);
+    assert.match(result, /PHONE_REDACTED/);
+    assert.match(result, /EMAIL_REDACTED/);
+  }
 });
 
 test('removes internal identity and source fields before AI', () => {
@@ -23,10 +28,11 @@ test('evidence boundary excludes canonical/source URL and raw private fields', (
   const result = redactEvidenceForAI({
     source_url: 'https://private.example/listing',
     canonical_url: 'https://private.example/listing/1',
-    extracted_payload: { title: 'أرض للبيع', text: 'تواصل 01000925451' },
+    extracted_payload: { title: 'أرض للبيع', text: 'تواصل ٠١٠٠٠٩٢٥٤٥١ وowner@example.com' },
   });
   assert.equal(result.canonical_url, null);
-  assert.equal(result.text.includes('01000925451'), false);
+  assert.equal(result.text.includes('٠١٠٠٠٩٢٥٤٥١'), false);
+  assert.equal(result.text.includes('owner@example.com'), false);
 });
 
 test('property boundary preserves public facts but removes contacts and ids', () => {
@@ -35,4 +41,10 @@ test('property boundary preserves public facts but removes contacts and ids', ()
   assert.equal(result.price, 7100000);
   assert.equal('phone' in result, false);
   assert.equal('property_id' in result, false);
+});
+
+test('assertAIInputSafe returns redacted payload', () => {
+  const safe = assertAIInputSafe({ city: 'مدينة السادات', evidence: '01000925451' });
+  assert.equal(safe.evidence, '[PHONE_REDACTED]');
+  assert.doesNotMatch(JSON.stringify(safe), /owner@example.com|01000925451/);
 });
