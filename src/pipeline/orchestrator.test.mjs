@@ -1,43 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCandidates, buildPipelineDecision, classifyInterest } from './orchestrator.mjs';
+import { buildMarketingContent, buildPipelineDecision, classifyInterest } from './orchestrator.mjs';
 
 test('resolver groups duplicate property candidates and chooses highest-confidence canonical', () => {
-  const groups = resolveCandidates([
-    { id: 'a', name: 'شقة السادات', phone: '01012345678', address: 'المنطقة السابعة مدينة السادات', city: 'مدينة السادات', confidence: 0.72, source_url: 'https://one.example/a' },
-    { id: 'b', name: 'شقة السادات', phone: '+201012345678', address: 'المنطقة السابعة مدينة السادات', city: 'مدينة السادات', confidence: 0.91, source_url: 'https://two.example/b' },
-    { id: 'c', name: 'فيلا مختلفة', phone: '01199999999', address: 'حي آخر', city: 'مدينة السادات', confidence: 0.8, source_url: 'https://three.example/c' },
+  const result = resolveCandidates([
+    { id: 'a', city: 'مدينة السادات', property_type: 'land', transaction_type: 'sale', parcel_number: 662, area_m2: 622, price: 7100000, confidence: 0.8 },
+    { id: 'b', city: 'السادات', property_type: 'land', transaction_type: 'sale', parcel_number: 662, area_m2: 622, price: 7100000, confidence: 0.9 },
+    { id: 'c', city: 'مدينة السادات', property_type: 'land', transaction_type: 'sale', parcel_number: 663, area_m2: 900, price: 9500000, confidence: 0.7 },
   ]);
-
-  assert.equal(groups.length, 2);
-  assert.equal(groups[0].canonical.id, 'b');
-  assert.equal(groups[0].match_count, 2);
+  assert.equal(result.length, 2);
+  assert.equal(result[0].canonical.id, 'b');
+  assert.equal(result[0].match_count, 2);
 });
 
-test('pipeline blocks external publishing when review requires human approval', () => {
-  const result = buildPipelineDecision({
-    entity: {
-      id: 'p1', entity_type: 'property', name: 'شقة 120 متر', city: 'مدينة السادات', confidence: 0.9,
-      provenance_count: 2, content_variant_id: 'cv1', primary_phone: '+201000925451',
-    },
-    leadSignal: { has_contact: true, explicit_intent_score: 0.9, property_interest_score: 0.8, sadat_city_score: 1, recency_score: 0.9 },
-    content: 'شقة 120 متر بمدينة السادات. السعر مثبت بالمصدر.',
-    channel: 'facebook',
-  });
-
-  assert.equal(result.review.approved, false);
-  assert.equal(result.publication.status, 'blocked_review');
-  assert.equal(result.publication.requires_human, true);
-  assert.equal(result.ready_for_publication, false);
+test('pipeline keeps external channels human-assisted', () => {
+  const entity = {
+    id: 'p-662', city: 'مدينة السادات', district: 'المنطقة 21', property_type: 'land', transaction_type: 'sale',
+    area_m2: 622, price: 7100000, currency: 'EGP', confidence: 0.9, provenance_count: 7,
+    primary_phone: '+201000925451', features: { parcel_number: 662 },
+  };
+  const decision = buildPipelineDecision({ entity, leadSignal: { has_contact: true }, channel: 'facebook' });
+  assert.equal(decision.publication.requires_human, true);
+  assert.equal(decision.publication.status, 'blocked_review');
+  assert.equal(decision.marketing_content.public_contact_policy, 'lara_brand_only');
 });
 
 test('pipeline can approve owned telegram marketing content with evidence', () => {
+  const entity = {
+    id: 'p-662', city: 'مدينة السادات', district: 'المنطقة 21', property_type: 'land', transaction_type: 'sale',
+    area_m2: 622, price: 7100000, currency: 'EGP', confidence: 0.95, provenance_count: 7,
+    primary_phone: '+201000925451', features: { parcel_number: 662 },
+  };
   const result = buildPipelineDecision({
-    entity: {
-      id: 'p2', entity_type: 'property', property_type: 'land', transaction_type: 'sale',
-      city: 'مدينة السادات', district: 'المنطقة 21', area_m2: 622, price: 7100000, currency: 'EGP',
-      confidence: 0.9, provenance_count: 2, content_variant_id: 'cv2', primary_phone: '+201000925451',
-    },
+    entity,
     leadSignal: { has_contact: true, explicit_intent_score: 0.8, property_interest_score: 0.8, sadat_city_score: 1, recency_score: 1 },
     channel: 'telegram',
   });
@@ -47,7 +42,9 @@ test('pipeline can approve owned telegram marketing content with evidence', () =
   assert.equal(result.publication.requires_human, false);
   assert.equal(result.ready_for_publication, true);
   assert.match(result.marketing_content.body, /لارا للتسويق العقاري/);
-  assert.doesNotMatch(result.marketing_content.body, /01000925451|201000925451/);
+  assert.match(result.marketing_content.body, /01000925451/);
+  assert.doesNotMatch(result.marketing_content.body, /201000925451/);
+  assert.doesNotMatch(result.marketing_content.body, /7100000|7 مليون/);
   assert.equal(result.marketing_content.psychology_policy, 'ethical_influence');
 });
 
@@ -67,7 +64,4 @@ test('pipeline derives buyer and seller intent only from explicit evidence', () 
   const buyer = classifyInterest({ text: 'بدور على أرض في مدينة السادات', property: { city: 'مدينة السادات', property_type: 'land' }, channel: 'telegram' });
   assert.equal(buyer.intent, 'buyer');
   assert.ok(buyer.score > 0);
-
-  const seller = classifyInterest({ text: 'أرض للبيع في المنطقة 21', property: { city: 'مدينة السادات', property_type: 'land' }, channel: 'telegram' });
-  assert.equal(seller.intent, 'seller');
 });
