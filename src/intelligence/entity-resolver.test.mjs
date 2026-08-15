@@ -11,10 +11,30 @@ test('same phone strongly matches two property candidates', () => {
   assert.ok(result.reasons.includes('same_phone'));
 });
 
-test('canonical candidate is the highest-confidence evidence', () => {
+test('same Sadat land parcel matches even when contact differs', () => {
+  const result = scorePropertyMatch(
+    { city: 'مدينة السادات', district: 'المنطقة 21', property_type: 'land', transaction_type: 'sale', parcel_number: 662, area_m2: 622, price: 7100000, phone: '01000000000' },
+    { city: 'السادات', district: 'المنطقه 21', property_type: 'land', transaction_type: 'sale', parcel_number: 662, area_m2: 622, price: 7100000, phone: '01000925451' },
+  );
+  assert.ok(result.score >= 0.95, `score=${result.score}`);
+  assert.ok(result.reasons.includes('same_parcel_city_type'));
+  assert.ok(result.reasons.includes('same_area'));
+  assert.ok(result.reasons.includes('same_price'));
+});
+
+test('different parcel does not get a strong identity match from shared city alone', () => {
+  const result = scorePropertyMatch(
+    { city: 'مدينة السادات', district: 'المنطقة 21', property_type: 'land', transaction_type: 'sale', parcel_number: 662, area_m2: 622, price: 7100000 },
+    { city: 'مدينة السادات', district: 'المنطقة 21', property_type: 'land', transaction_type: 'sale', parcel_number: 663, area_m2: 900, price: 9500000 },
+  );
+  assert.ok(result.score < 0.85, `score=${result.score}`);
+});
+
+test('canonical candidate is the highest-confidence and most complete evidence', () => {
   const result = chooseCanonical([
-    { confidence: 0.4, source_url: 'https://b.example' },
+    { confidence: 0.4, source_url: 'https://b.example', area_m2: 100 },
     { confidence: 0.91, source_url: 'https://a.example' },
+    { confidence: 0.91, source_url: 'https://c.example', area_m2: 120, price: 7000000, parcel_number: 662 },
   ]);
-  assert.equal(result.source_url, 'https://a.example');
+  assert.equal(result.source_url, 'https://c.example');
 });
