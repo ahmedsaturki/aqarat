@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "check:syntax": "find src api scripts test -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check",
+    "check": "npm test && npm run check:syntax",
     "start:intake": "node src/runtime/intake-api.mjs",
     "verify:release": "node scripts/verify-release.mjs"
   },

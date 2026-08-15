@@ -37,3 +37,19 @@ The first production vertical is:
 `Telegram/natural language -> intake -> extraction -> validation -> deduplication -> Postgres -> Sheets projection`
 
 Only after this path passes end-to-end tests do we activate discovery and distribution workers.
+
+## Runtime safety and release operations
+
+The production API is served through a single allowlisted catch-all function to remain compatible with the Vercel Hobby function limit. Every response includes restrictive security headers, a no-store cache policy, an explicit content length, and a correlation identifier that is shared with delegated handlers and structured error logs. Unknown routes fail closed with a generic JSON response; internal exception details and upstream response bodies are never returned to callers.
+
+Outbound requests use `OUTBOUND_TIMEOUT_MS`, bounded to 1–60 seconds with a 15-second default. Incoming request bodies use `MAX_BODY_BYTES`, bounded to 1 KiB–5 MiB with a 256 KiB default. Invalid or non-numeric environment values fall back to safe defaults rather than disabling protection.
+
+The repository quality gate is `npm run check`, which runs the full Node test suite and syntax validation for all application, API, script, and test modules. Production verification runs this gate before checking the public release contract and authenticated deep health. Scheduled worker workflows use least-privilege GitHub permissions and single-flight concurrency controls to avoid overlapping queue processors.
+
+## Database migrations
+
+Database changes are kept in `supabase/migrations/` and must be reviewed against the live Supabase advisor output before application. The duplicate discovery-policy cleanup migration removes only redundant role-specific deny policies; the shared deny policy remains active for anonymous and authenticated roles, while service-role application access is not targeted. After applying a migration, rerun both security and performance advisors and execute the public-role access smoke tests.
+
+## Required production configuration
+
+The production runtime requires the values listed in `.env.example`, including `PUBLIC_BASE_URL` for Telegram webhook health, the provider credentials used by Gemini and Telegram, the Supabase service-role credential for backend workers, and the dedicated workflow secrets used by GitHub Actions. Secret values must be entered through the deployment or secret manager rather than committed to the repository or pasted into issue comments.
