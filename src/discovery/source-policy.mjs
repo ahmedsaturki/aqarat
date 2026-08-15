@@ -8,7 +8,16 @@ function hostnameMatches(hostname, allowedDomains) {
   });
 }
 
-export function assertDiscoverySourceAllowed(source, targetUrl) {
+function hasActivePermissionEvidence(evidence, now = Date.now()) {
+  if (evidence === true) return true;
+  const status = String(evidence?.status || '').trim().toLowerCase();
+  if (!['verified', 'approved'].includes(status)) return false;
+  if (!evidence?.verified_at || Number.isNaN(Date.parse(evidence.verified_at))) return false;
+  if (evidence?.expires_at && (!Number.isNaN(Date.parse(evidence.expires_at)) && Date.parse(evidence.expires_at) <= now)) return false;
+  return true;
+}
+
+export function assertDiscoverySourceAllowed(source, targetUrl, permissionEvidence = null) {
   const policy = source?.crawl_policy ?? source?.config ?? {};
 
   if (!source?.enabled) throw new Error('discovery_source_not_enabled');
@@ -33,6 +42,9 @@ export function assertDiscoverySourceAllowed(source, targetUrl) {
   const permissionReference = source?.metadata?.permission_reference ?? policy.permission_reference;
   if (policy.require_permission_reference === true && !permissionReference) {
     throw new Error('discovery_permission_reference_required');
+  }
+  if (policy.require_permission_reference === true && !hasActivePermissionEvidence(permissionEvidence)) {
+    throw new Error('discovery_permission_evidence_required');
   }
 
   return true;

@@ -26,11 +26,16 @@ The production Supabase project is currently migration-managed. The applied migr
 - 20260815004049_add_canonical_property_projection_metadata
 - 20260815004645_add_property_resolution_and_lead_scoring
 - 20260815004742_fix_lead_score_and_property_match_functions
+- 20260815033252_add_market_graph_interactions_and_content_analytics
+- 20260815110409_add_discovery_entity_materializer
+- 20260815133522_add_release_governance_audit_and_source_permission_evidence
+- 20260815141109_enforce_discovery_permissions_and_dashboard_audit
+- 20260815141321_lock_dashboard_apply_action
 
 ## Rule
 
-Application code may consume the schema, but it must not become the implicit schema source. Future schema changes must be applied through versioned Supabase migrations and reflected in this repository.
+Application code may consume the schema, but it must not become the implicit schema source. Future schema changes must be applied through versioned Supabase migrations and reflected in this repository. A migration file is committed only after the authoritative migration application succeeds; never place a draft with an arbitrary timestamp in this directory.
 
-## Current limitation
+## Recovery verification
 
-The production migration ledger is verified, but the original SQL bodies for the historical migrations are not recoverable from the repository connector in this session. Do not fabricate historical SQL. Before a new environment is provisioned, export the authoritative migration SQL from the Supabase project and commit it here.
+The original `statements` recorded in `supabase_migrations.schema_migrations` were recovered on 2026-08-15 and saved with their production versions. The exact production copy replaced a divergent local mirror for `20260815033252`; the former mirror was intentionally not retained in the migration path. See `MIGRATION_RECOVERY_REPORT.md` for the recovery inventory.

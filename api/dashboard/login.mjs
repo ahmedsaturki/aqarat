@@ -8,8 +8,25 @@ function json(res, status, payload) {
   res.status(status).json(payload);
 }
 
-function digest() {
-  return crypto.createHmac('sha256', SECRET).update('aqarat-dashboard:v1').digest('hex');
+function signature(payload) {
+  return crypto.createHmac('sha256', SECRET).update(`aqarat-dashboard:v2:${payload}`).digest('hex');
+}
+
+function sessionToken() {
+  const payload = `${Date.now()}.${crypto.randomBytes(18).toString('base64url')}`;
+  return `${payload}.${signature(payload)}`;
+}
+
+function sessionDetails(req) {
+  if (!SECRET) return null;
+  const cookie = String(req.headers?.cookie || '').split(';').map((v) => v.trim()).find((v) => v.startsWith(`${COOKIE}=`));
+  const token = cookie ? decodeURIComponent(cookie.slice(COOKIE.length + 1)) : '';
+  const [issuedAt, nonce, suppliedSignature, ...rest] = token.split('.');
+  const payload = `${issuedAt || ''}.${nonce || ''}`;
+  if (rest.length || !issuedAt || !nonce || !suppliedSignature || !safeEqual(suppliedSignature, signature(payload))) return null;
+  const ageMs = Date.now() - Number(issuedAt);
+  if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > MAX_AGE * 1000) return null;
+  return { actorId: `dashboard-session:${crypto.createHash('sha256').update(nonce).digest('hex').slice(0, 16)}` };
 }
 
 function safeEqual(a, b) {
@@ -19,10 +36,11 @@ function safeEqual(a, b) {
 }
 
 export function dashboardSessionValid(req) {
-  if (!SECRET) return false;
-  const cookie = String(req.headers?.cookie || '').split(';').map((v) => v.trim()).find((v) => v.startsWith(`${COOKIE}=`));
-  const token = cookie ? decodeURIComponent(cookie.slice(COOKIE.length + 1)) : '';
-  return safeEqual(token, digest());
+  return Boolean(sessionDetails(req));
+}
+
+export function dashboardSessionActor(req) {
+  return sessionDetails(req)?.actorId || null;
 }
 
 export default async function handler(req, res) {
@@ -37,6 +55,6 @@ export default async function handler(req, res) {
   const password = String(body?.password || '');
   if (!safeEqual(password, SECRET)) return json(res, 401, { error: 'invalid_credentials' });
 
-  res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(digest())}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${MAX_AGE}`);
+  res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(sessionToken())}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${MAX_AGE}`);
   return json(res, 200, { ok: true, expires_in: MAX_AGE });
 }

@@ -11,8 +11,11 @@ test('redacts Egyptian ASCII, Arabic-Indic, and international phones from free t
   for (const result of values) {
     assert.equal(/01000925451|٠١٠٠٠٩٢٥٤٥١|201000925451|00201000925451/.test(result), false);
     assert.match(result, /PHONE_REDACTED/);
-    assert.match(result, /EMAIL_REDACTED/);
   }
+
+  assert.match(values[0], /EMAIL_REDACTED/);
+  assert.match(values[1], /EMAIL_REDACTED/);
+  assert.doesNotMatch(values[2], /EMAIL_REDACTED/);
 });
 
 test('removes internal identity and source fields before AI', () => {

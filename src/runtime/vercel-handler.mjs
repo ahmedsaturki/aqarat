@@ -159,7 +159,8 @@ function productionError(error) {
 
 export async function handleHealth(_req, res) {
   const correlationId = randomUUID();
-  return json(res, 200, { ok: true, service: 'aqarat-intake', version: 'v1', telegram_token_configured: Boolean(TELEGRAM_BOT_TOKEN), intake_secret_configured: Boolean(INTAKE_WEBHOOK_SECRET) }, correlationId);
+  const release = String(process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || '').trim();
+  return json(res, 200, { ok: true, service: 'aqarat-intake', ...(release ? { release } : {}) }, correlationId);
 }
 
 export async function handleIntake(req, res) {

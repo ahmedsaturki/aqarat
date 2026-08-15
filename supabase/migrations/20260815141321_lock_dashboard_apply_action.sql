@@ -1,0 +1,1 @@
+alter function public.dashboard_apply_action(text, uuid, text, boolean, text, text, text) security invoker; revoke all on function public.dashboard_apply_action(text, uuid, text, boolean, text, text, text) from public, anon, authenticated; grant execute on function public.dashboard_apply_action(text, uuid, text, boolean, text, text, text) to service_role;

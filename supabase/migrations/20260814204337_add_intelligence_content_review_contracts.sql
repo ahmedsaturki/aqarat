@@ -1,0 +1,16 @@
+create table if not exists public.entity_matches (id uuid primary key default gen_random_uuid(), left_entity_type text not null, left_entity_id uuid not null, right_entity_type text not null, right_entity_id uuid not null, match_type text not null, score numeric(5,4) not null default 0, reasons jsonb not null default '[]'::jsonb, status text not null default 'candidate', created_at timestamptz not null default now(), updated_at timestamptz not null default now(), unique(left_entity_type,left_entity_id,right_entity_type,right_entity_id,match_type));
+create index if not exists entity_matches_left_idx on public.entity_matches(left_entity_type,left_entity_id,status,score desc);
+create index if not exists entity_matches_right_idx on public.entity_matches(right_entity_type,right_entity_id,status,score desc);
+
+create table if not exists public.lead_signals (id uuid primary key default gen_random_uuid(), person_id uuid references public.people(id) on delete cascade, lead_type text not null, signal_type text not null, score numeric(5,4) not null default 0, evidence jsonb not null default '{}'::jsonb, observed_at timestamptz not null default now(), created_at timestamptz not null default now());
+create index if not exists lead_signals_person_idx on public.lead_signals(person_id, observed_at desc);
+
+create table if not exists public.content_variants (id uuid primary key default gen_random_uuid(), content_item_id uuid references public.content_items(id) on delete cascade, channel text not null, locale text not null default 'ar-EG', variant_type text not null default 'organic', body text not null, metadata jsonb not null default '{}'::jsonb, status text not null default 'draft', created_at timestamptz not null default now(), updated_at timestamptz not null default now(), unique(content_item_id,channel,locale,variant_type));
+create index if not exists content_variants_status_idx on public.content_variants(status, channel, created_at desc);
+
+create table if not exists public.review_queue (id uuid primary key default gen_random_uuid(), object_type text not null, object_id uuid not null, queue_type text not null, status text not null default 'pending', priority integer not null default 100, checks jsonb not null default '{}'::jsonb, reviewer_id uuid, decision text, notes text, created_at timestamptz not null default now(), reviewed_at timestamptz);
+create index if not exists review_queue_pending_idx on public.review_queue(status, priority desc, created_at);
+create unique index if not exists review_queue_object_uq on public.review_queue(object_type,object_id,queue_type) where status in ('pending','in_review');
+
+create table if not exists public.publication_jobs (id uuid primary key default gen_random_uuid(), content_variant_id uuid references public.content_variants(id) on delete cascade, channel text not null, destination text, status text not null default 'queued', payload jsonb not null default '{}'::jsonb, requires_human boolean not null default true, attempts integer not null default 0, max_attempts integer not null default 3, last_error text, available_at timestamptz not null default now(), started_at timestamptz, finished_at timestamptz, created_at timestamptz not null default now());
+create index if not exists publication_jobs_claim_idx on public.publication_jobs(status, available_at, channel, created_at);

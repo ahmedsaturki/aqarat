@@ -56,3 +56,30 @@ test('permission-required sources fail closed without a reference', () => {
     /discovery_permission_reference_required/,
   );
 });
+
+test('permission-required sources require current verified or approved evidence', () => {
+  const source = {
+    enabled: true,
+    crawl_policy: {
+      automation_allowed: true,
+      allowed_domains: ['example.com'],
+      require_permission_reference: true,
+    },
+    metadata: { permission_reference: 'OPS-2026-001' },
+  };
+
+  assert.throws(
+    () => assertDiscoverySourceAllowed(source, 'https://example.com/listings'),
+    /discovery_permission_evidence_required/,
+  );
+  assert.throws(
+    () => assertDiscoverySourceAllowed(source, 'https://example.com/listings', {
+      status: 'approved', verified_at: '2026-08-01T00:00:00Z', expires_at: '2026-08-10T00:00:00Z',
+    }),
+    /discovery_permission_evidence_required/,
+  );
+  assert.doesNotThrow(() => assertDiscoverySourceAllowed(source, 'https://example.com/listings', {
+    status: 'verified', verified_at: '2026-08-01T00:00:00Z', expires_at: '2026-12-31T00:00:00Z',
+  }));
+  assert.doesNotThrow(() => assertDiscoverySourceAllowed(source, 'https://example.com/listings', true));
+});

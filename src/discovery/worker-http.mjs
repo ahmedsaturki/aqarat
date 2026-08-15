@@ -52,6 +52,14 @@ async function getSource(id) {
   return rows?.[0] ?? null;
 }
 
+async function hasActivePermissionEvidence(sourceId) {
+  const result = await sb('/rest/v1/rpc/discovery_source_permission_active', {
+    method: 'POST',
+    body: JSON.stringify({ p_source_id: sourceId }),
+  });
+  return result === true;
+}
+
 async function upsertEvidence(job, source, fetched) {
   const contentHash = createHash('sha256').update(fetched.content_hash_input || '').digest('hex');
   const rows = await sb('/rest/v1/discovery_evidence?on_conflict=run_id,url', {
@@ -189,7 +197,8 @@ async function main() {
     const source = await getSource(job.payload?.source_id);
     if (!source) throw new Error('discovery_source_not_found');
     const target = job.payload?.url || source.base_url;
-    assertDiscoverySourceAllowed(source, target);
+    const permissionEvidenceActive = await hasActivePermissionEvidence(source.id);
+    assertDiscoverySourceAllowed(source, target, permissionEvidenceActive);
 
     const fetched = await fetchPublicSource(target, {
       timeoutMs: Math.min(Number(source.config?.timeout_ms || 15000), 30000),
@@ -227,7 +236,8 @@ async function main() {
     console.log(JSON.stringify({ ok: true, claimed: true, job_id: job.id, evidence_id: evidence?.id ?? null, entities: entityRows.length, materialized: materialized.length }));
   } catch (error) {
     const attempts = Number(job.attempts || 1);
-    const retryable = attempts < Number(job.max_attempts || 5) && !String(error.message).startsWith('discovery_source_policy_blocked');
+    const policyError = /^(discovery_source_|discovery_permission_|discovery_https_|discovery_domain_|discovery_url_credentials_forbidden|discovery_target_url_invalid)/.test(String(error.message));
+    const retryable = attempts < Number(job.max_attempts || 5) && !policyError;
     await finish(job, {
       status: retryable ? 'queued' : 'failed',
       last_error: error.message,
