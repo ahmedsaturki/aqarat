@@ -67,7 +67,7 @@ export function buildPublicMarketingContext(entity, channel = 'telegram', strate
     },
     strategy: persuasion,
     suppressed_fields: [...INTERNAL_KEYS],
-    public_contact_policy: 'lara_brand_only',
+    public_contact_policy: 'configurable_brand_only',
     public_price_policy: 'never_publish_internal_price',
     public_style: 'sales_marketing_not_data_dump',
   };
@@ -132,7 +132,7 @@ export function assertPublicCopySafe(copy, entity, channel, options = {}) {
     forbidden_values: [...new Set(forbiddenValues)],
     channel,
     audience: publicChannel ? 'public' : 'internal',
-    policy: 'lara_brand_only',
+    policy: 'configurable_brand_only',
     identity_mode: 'configurable_brand',
     public_price_policy: 'never_publish_internal_price',
     has_brand: hasBrand,
