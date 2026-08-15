@@ -47,13 +47,22 @@ export function scorePropertyMatch(a, b) {
 
   const pa = phoneKey(a?.phone ?? a?.primary_phone);
   const pb = phoneKey(b?.phone ?? b?.primary_phone);
+
+  // Exact identity shortcut: the same contact with matching core property
+  // identity is stronger evidence than any weighted sum.
+  if (pa && pb && pa === pb && cityA && cityA === cityB && typeA && typeA === typeB && txA && txA === txB) {
+    return { score: 1, reasons: ['same_phone', 'same_city', 'same_property_type', 'same_transaction_type'] };
+  }
+
   if (pa && pb && pa === pb) {
     score += 0.55;
     reasons.push('same_phone');
   }
 
+  // A parcel number is a strong property identity signal only when the
+  // location/type also agree; a parcel number alone is not enough.
   if (parcelA != null && parcelB != null && parcelA === parcelB && cityA && cityA === cityB && typeA === typeB) {
-    score += 0.35;
+    score += 0.70;
     reasons.push('same_parcel_city_type');
   }
 
