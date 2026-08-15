@@ -57,8 +57,16 @@ const MARKETING_SCHEMA = {
   required: ['audience', 'funnel_stage', 'angle', 'hook', 'value_proposition', 'objections', 'proof_points', 'cta'],
 };
 
-export async function runPropertyExtractionAgent(evidence) {
+function agentOptions(options = {}) {
+  return {
+    temperature: options.temperature,
+    timeoutMs: options.timeoutMs,
+  };
+}
+
+export async function runPropertyExtractionAgent(evidence, options = {}) {
   return runStructuredAgent({
+    ...agentOptions(options),
     agent: AI_AGENT_ROLES.PROPERTY_EXTRACTION,
     system: 'You are the Aqarat property extraction agent. Use only the supplied evidence. Never invent missing values. Reject generic category/index pages as not a listing. Return structured JSON only. Any extracted value must have supporting evidence_spans.',
     input: {
@@ -72,8 +80,9 @@ export async function runPropertyExtractionAgent(evidence) {
   });
 }
 
-export async function runInterestIntelligenceAgent({ text, property = {}, context = {} } = {}) {
+export async function runInterestIntelligenceAgent({ text, property = {}, context = {} } = {}, options = {}) {
   return runStructuredAgent({
+    ...agentOptions(options),
     agent: AI_AGENT_ROLES.INTEREST_INTELLIGENCE,
     system: 'You are the Aqarat interest-intelligence agent. Infer intent only from explicit or strongly evidenced language. Never infer buyer intent merely from possessing a contact or being related to a listing.',
     input: { text, property, context },
@@ -81,8 +90,9 @@ export async function runInterestIntelligenceAgent({ text, property = {}, contex
   });
 }
 
-export async function runSalesMarketingAgent({ property = {}, audience = 'general_market', funnelStage = 'attention', channel = 'telegram' } = {}) {
+export async function runSalesMarketingAgent({ property = {}, audience = 'general_market', funnelStage = 'attention', channel = 'telegram' } = {}, options = {}) {
   return runStructuredAgent({
+    ...agentOptions(options),
     agent: AI_AGENT_ROLES.SALES_MARKETING,
     system: 'You are the Aqarat sales-marketing strategist. Build ethical persuasion plans from verified facts only. Never expose seller/owner/broker/source/private contact data. Public CTA identity is Lara Real Estate only. Never invent scarcity, guarantees, social proof, price advantages, ROI, or urgency.',
     input: { property, audience, funnel_stage: funnelStage, channel },
@@ -90,8 +100,9 @@ export async function runSalesMarketingAgent({ property = {}, audience = 'genera
   });
 }
 
-export async function runDiscoveryTriageAgent(evidence) {
+export async function runDiscoveryTriageAgent(evidence, options = {}) {
   return runStructuredAgent({
+    ...agentOptions(options),
     agent: AI_AGENT_ROLES.DISCOVERY_TRIAGE,
     system: 'You are the Aqarat discovery triage agent. Decide whether the page represents real individual property listings or only an index, category, company, generic city page, or unrelated page. When listings exist, return candidate facts only when explicitly supported by the evidence.',
     input: {
