@@ -1,82 +1,35 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Aqarat OS — Operations Dashboard</title>
-  <link rel="stylesheet" href="/dashboard/styles.css" />
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aqarat OS — Control Plane</title><link rel="stylesheet" href="/dashboard/styles.css"></head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand-block"><div class="brand-mark">A</div><div><strong>Aqarat OS</strong><small>Real Estate Intelligence</small></div></div>
-      <nav>
-        <a class="active" href="/dashboard/">لوحة التحكم</a><a href="#properties">العقارات</a><a href="#leads">العملاء المحتملون</a><a href="#discovery">الاكتشاف والمصادر</a><a href="#content">المحتوى والإعلانات</a><a href="#review">المراجعة والموافقات</a><a href="#analytics">Insights & Analytics</a><a href="#jobs">Workers & Jobs</a><a href="#settings">الهوية والإعدادات</a><a href="#audit">Audit Log</a>
-      </nav>
-      <div class="sidebar-foot">Private operator surface</div>
-    </aside>
-
-    <main class="main">
-      <header class="topbar"><div><h1>مركز تشغيل Aqarat</h1><p>اكتشاف → تحليل → مطابقة → محتوى → مراجعة → نشر</p></div><div class="status-pill" id="health">جاري الفحص…</div></header>
-
-      <div id="login" class="auth-card">
-        <h2>تسجيل دخول المشغّل</h2><p>هذه لوحة داخلية وتحتاج سر المشغّل المخزن في Vercel.</p>
-        <form id="loginForm"><input id="password" type="password" autocomplete="current-password" placeholder="Dashboard Admin Secret" required><button type="submit">دخول</button><div id="loginError" class="error"></div></form>
-      </div>
-
-      <section id="dashboard" hidden>
-        <section class="grid metrics" id="metrics"></section>
-        <section class="grid two">
-          <article class="card"><div class="card-head"><h2>الهوية العامة</h2><span class="tag">Public Brand</span></div><div id="brand" class="brand-preview">جاري التحميل…</div><p class="muted">الاسم ورقم التواصل العام قابلان للتبديل مركزيًا بدون تعديل منطق الـCore.</p></article>
-          <article class="card"><div class="card-head"><h2>Public Safety</h2><span class="tag safe">ENFORCED</span></div><ul class="checks"><li>سعر العقار: <b>داخلي فقط</b></li><li>بيانات المالك والمصدر: <b>محجوبة</b></li><li>النشر العام: <b>بهويّة الشركة وأرقامها فقط</b></li><li>النشر الخارجي: <b>Human Review</b></li></ul></article>
-        </section>
-        <section class="card"><div class="card-head"><h2>آخر العقارات</h2><span class="tag">Live Supabase</span></div><div class="table-wrap"><table><thead><tr><th>العنوان</th><th>الموقع</th><th>النوع</th><th>المساحة</th><th>السعر الداخلي</th><th>الثقة</th><th>الحالة</th></tr></thead><tbody id="propertiesBody"></tbody></table></div></section>
-        <section class="card"><div class="card-head"><h2>Workers & Jobs</h2><span class="tag">Live Queue</span></div><div class="table-wrap"><table><thead><tr><th>Job</th><th>النوع</th><th>الحالة</th><th>المحاولات</th><th>التاريخ</th></tr></thead><tbody id="jobsBody"></tbody></table></div></section>
-      </section>
-    </main>
-  </div>
-  <script>
-    const login = document.getElementById('login');
-    const dashboard = document.getElementById('dashboard');
-    const health = document.getElementById('health');
-    const metrics = document.getElementById('metrics');
-    const brand = document.getElementById('brand');
-
-    const metricDefs = [['properties','العقارات','Canonical entities'],['leads','Leads','Qualified intents'],['active_sources','مصادر نشطة','Discovery sources'],['pending_reviews','محتوى بانتظار المراجعة','Human approval queue'],['active_jobs','Jobs نشطة','Queued / running / retry'],['active_publications','عمليات نشر','Owned/external publication'],['active_discovery_runs','Discovery Runs','Queued / running'],['processed_intakes','Intake processed','Committed events']];
-
-    async function loadOverview() {
-      const response = await fetch('/api/dashboard/overview', { headers: { accept: 'application/json' } });
-      if (response.status === 401) throw new Error('AUTH_REQUIRED');
-      if (!response.ok) throw new Error('OVERVIEW_FAILED');
-      return response.json();
-    }
-
-    function render(data, publicConfig) {
-      metrics.innerHTML = metricDefs.map(([key,label,sub]) => `<article class="card metric"><span>${label}</span><strong>${Number(data.metrics[key] || 0).toLocaleString('ar-EG')}</strong><small>${sub}</small></article>`).join('');
-      brand.innerHTML = `<strong>${publicConfig.brand}</strong><span>Phone: ${publicConfig.phone || '—'}</span><span>WhatsApp: ${publicConfig.whatsapp || '—'}</span><span>Price policy: never public</span>`;
-      document.getElementById('propertiesBody').innerHTML = (data.recent_properties || []).map((p) => `<tr><td>${p.title || '—'}</td><td>${[p.city,p.district].filter(Boolean).join(' · ') || '—'}</td><td>${p.property_type || '—'} / ${p.transaction_type || '—'}</td><td>${p.area_m2 ?? '—'} م²</td><td>${p.price != null ? `${Number(p.price).toLocaleString('ar-EG')} ${p.currency || 'EGP'}` : '—'}</td><td>${p.confidence != null ? `${Math.round(Number(p.confidence)*100)}%` : '—'}</td><td>${p.status || '—'}</td></tr>`).join('');
-      document.getElementById('jobsBody').innerHTML = (data.recent_jobs || []).map((j) => `<tr><td>${j.id || '—'}</td><td>${j.job_type || '—'}</td><td><span class="tag">${j.status || '—'}</span></td><td>${j.attempts ?? 0}</td><td>${j.updated_at ? new Date(j.updated_at).toLocaleString('ar-EG') : '—'}</td></tr>`).join('');
-      login.hidden = true; dashboard.hidden = false; health.textContent = 'Supabase Live'; health.classList.add('ok');
-    }
-
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault(); document.getElementById('loginError').textContent = '';
-      const password = document.getElementById('password').value;
-      const res = await fetch('/api/dashboard/login', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({password}) });
-      if (!res.ok) { document.getElementById('loginError').textContent = 'بيانات الدخول غير صحيحة أو السر غير مضبوط.'; return; }
-      await boot();
-    });
-
-    async function boot() {
-      try {
-        const [data, config] = await Promise.all([loadOverview(), fetch('/api/public-config').then(r=>r.json())]);
-        render(data, config);
-      } catch (error) {
-        if (error.message === 'AUTH_REQUIRED') { login.hidden = false; dashboard.hidden = true; health.textContent = 'Operator login required'; return; }
-        health.textContent = 'Dashboard unavailable'; health.classList.add('bad');
-      }
-    }
-    boot();
-  </script>
-</body>
-</html>
+<div class="app-shell">
+<aside class="sidebar"><div class="brand-block"><div class="brand-mark">A</div><div><strong>Aqarat OS</strong><small>Real Estate Intelligence</small></div></div><nav id="nav"><a class="active" data-view="overview">لوحة التحكم</a><a data-view="properties">العقارات</a><a data-view="leads">العملاء المحتملون</a><a data-view="discovery">الاكتشاف</a><a data-view="content">المحتوى</a><a data-view="review">المراجعة</a><a data-view="insights">Insights</a><a data-view="jobs">Workers & Jobs</a><a data-view="publications">النشر</a></nav><div class="sidebar-foot">Private operator surface</div></aside>
+<main class="main"><header class="topbar"><div><h1>مركز تشغيل Aqarat</h1><p>اكتشاف → تحليل → مطابقة → ذكاء → تسويق → مراجعة → تشغيل</p></div><div class="status-pill" id="health">جاري الفحص…</div></header>
+<section id="login" class="card auth-card"><h2>تسجيل دخول المشغّل</h2><p class="muted">هذه لوحة داخلية وتحتاج سر المشغّل المخزن في Vercel.</p><form id="loginForm"><input id="password" type="password" autocomplete="current-password" placeholder="Dashboard Admin Secret" required><button>دخول</button><div id="loginError" class="error"></div></form></section>
+<section id="app" hidden><div id="metrics" class="grid metrics"></div><div id="content" class="view-root"></div></section>
+</main></div>
+<script>
+const $=s=>document.querySelector(s); const login=$('#login'),app=$('#app'),root=$('#content'),health=$('#health'); let cache={};
+const metricDefs=[['properties','العقارات'],['leads','Leads'],['active_sources','مصادر نشطة'],['pending_reviews','مراجعات'],['active_jobs','Jobs نشطة'],['active_publications','عمليات نشر'],['active_discovery_runs','Discovery Runs'],['processed_intakes','Intake'],['interests','Interests'],['interactions','Interactions']];
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+async function api(view='all'){const r=await fetch('/api/dashboard/data?view='+encodeURIComponent(view),{headers:{accept:'application/json'}});if(r.status===401)throw Error('AUTH');if(!r.ok)throw Error('DATA');return r.json()}
+async function action(action,id,extra={}){const r=await fetch('/api/dashboard/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,id,...extra})});const d=await r.json();if(!r.ok)throw Error(d.error||'ACTION');return d}
+function metrics(m){$('#metrics').innerHTML=metricDefs.map(([k,l])=>`<article class="card metric"><span>${l}</span><strong>${Number(m?.[k]||0).toLocaleString('ar-EG')}</strong></article>`).join('')}
+function panel(title,body,tag='Live'){return `<section class="card panel"><div class="card-head"><h2>${title}</h2><span class="tag">${tag}</span></div>${body}</section>`}
+function table(head,rows){return `<div class="table-wrap"><table><thead><tr>${head.map(esc).map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`}
+function overview(){return `<div class="grid two">${panel('الهوية العامة',`<div class="brand-preview"><strong>${esc(cache.brand?.brand||'لارا للتسويق العقاري')}</strong><span>Phone: ${esc(cache.brand?.phone||'—')}</span><span>WhatsApp: ${esc(cache.brand?.whatsapp||'—')}</span><span>Price: Internal only</span></div>`,'Public Brand')}${panel('Public Safety','<ul class="checks"><li>السعر: <b>داخلي فقط</b></li><li>المالك/المصدر: <b>داخلي فقط</b></li><li>Public contact: <b>Brand-configured only</b></li><li>External publishing: <b>Human review</b></li></ul>','ENFORCED')}</div>${properties()}${jobs()}`}
+function properties(){return panel('العقارات',table(['العنوان','الموقع','النوع','المساحة','السعر الداخلي','Parcel','الثقة','الحالة'],(cache.properties||[]).slice(0,25).map(p=>`<tr><td>${esc(p.title)}</td><td>${esc([p.city,p.district].filter(Boolean).join(' · '))}</td><td>${esc(p.property_type)} / ${esc(p.transaction_type)}</td><td>${esc(p.area_m2)} م²</td><td>${esc(p.price)} ${esc(p.currency)}</td><td>${esc(p.parcel_number||'—')}</td><td>${p.confidence!=null?Math.round(Number(p.confidence)*100)+'%':'—'}</td><td>${esc(p.status)}</td></tr>`)),'Internal intelligence')}
+function leads(){return panel('Leads',table(['Intent','Score','Status','Source','Property','Action'],(cache.leads||[]).map(l=>`<tr><td>${esc(l.intent)}</td><td>${esc(l.score)}</td><td><select data-lead-select="${esc(l.id)}"><option value="${esc(l.status)}">${esc(l.status)}</option>${['new','qualified','contacted','meeting','negotiation','won','lost','nurture'].filter(s=>s!==l.status).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td><td>${esc(l.source)}</td><td>${esc(l.property_id||'—')}</td><td><button class="small" data-lead="${esc(l.id)}">حفظ</button></td></tr>`)),'Live CRM')}
+function discovery(){return panel('Discovery Sources',table(['Source','Enabled','Policy','Type','Action'],(cache.discovery_sources||[]).map(s=>`<tr><td>${esc(s.name)}</td><td>${s.enabled?'✅':'⛔'}</td><td>${esc(s.policy_mode)}</td><td>${esc(s.source_type)}</td><td><button class="small" data-toggle="${esc(s.id)}" data-enabled="${s.enabled?'0':'1'}">${s.enabled?'تعطيل':'تفعيل'}</button></td></tr>`)),'Control')+panel('Recent Runs',table(['Run','Source','Status','Query','Created'],(cache.discovery_runs||[]).slice(0,30).map(r=>`<tr><td>${esc(r.id)}</td><td>${esc(r.source_id)}</td><td>${esc(r.status)}</td><td>${esc(r.query)}</td><td>${esc(r.created_at)}</td></tr>`)),'Evidence')}
+function content(){return panel('Content Factory',table(['Title','Channel','Status','Quality','AI','Updated'],(cache.content_items||[]).map(c=>`<tr><td>${esc(c.title)}</td><td>${esc(c.channel)}</td><td>${esc(c.status)}</td><td>${esc(c.quality_score??'—')}</td><td>${esc(c.ai_model||'deterministic')}</td><td>${esc(c.updated_at)}</td></tr>`)),'Marketing')}
+function review(){return panel('Review Queue',table(['Object','Queue','Priority','Status','Decision','Actions'],(cache.review_queue||[]).map(r=>`<tr><td>${esc(r.object_type)} / ${esc(r.object_id)}</td><td>${esc(r.queue_type)}</td><td>${esc(r.priority)}</td><td>${esc(r.status)}</td><td>${esc(r.decision||'—')}</td><td>${r.status==='pending'?`<button class="small" data-review="${esc(r.id)}" data-decision="approve">موافقة</button> <button class="small danger" data-review="${esc(r.id)}" data-decision="reject">رفض</button>`:'—'}</td></tr>`)),'Human Gate')}
+function insights(){const p=cache.content_performance||[];const sums=['impressions','views','replies','qualified_inquiries','conversions'].map(k=>[k,p.reduce((a,x)=>a+Number(x[k]||0),0)]);return `<div class="grid metrics">${sums.map(([k,v])=>`<article class="card metric"><span>${k}</span><strong>${v.toLocaleString('ar-EG')}</strong></article>`).join('')}</div>${panel('Content Performance',table(['Channel','Impressions','Views','Replies','Qualified','Conversions'],p.map(x=>`<tr><td>${esc(x.channel)}</td><td>${x.impressions||0}</td><td>${x.views||0}</td><td>${x.replies||0}</td><td>${x.qualified_inquiries||0}</td><td>${x.conversions||0}</td></tr>`)),'Analytics')}${panel('Interests & Interactions',table(['Interest','Type','City','Score','Status'],(cache.interests||[]).slice(0,25).map(i=>`<tr><td>${esc(i.id)}</td><td>${esc(i.interest_type)}</td><td>${esc(i.city)}</td><td>${esc(i.intent_score)}</td><td>${esc(i.status)}</td></tr>`)),'Market Graph')}`}
+function jobs(){return panel('Workers & Jobs',table(['Job','Type','Status','Priority','Attempts','Error','Action'],(cache.jobs||[]).slice(0,30).map(j=>`<tr><td>${esc(j.id)}</td><td>${esc(j.job_type)}</td><td>${esc(j.status)}</td><td>${esc(j.priority)}</td><td>${esc(j.attempts)}/${esc(j.max_attempts)}</td><td>${esc(j.error_message||'—')}</td><td>${['failed','retry'].includes(j.status)?`<button class="small" data-retry="${esc(j.id)}">Retry</button>`:'—'}</td></tr>`)),'Operational')}
+function publications(){return panel('Publication Jobs',table(['Channel','Destination','Status','Human','Attempts','Error','Action'],(cache.publication_jobs||[]).map(p=>`<tr><td>${esc(p.channel)}</td><td>${esc(p.destination)}</td><td>${esc(p.status)}</td><td>${p.requires_human?'✅':'—'}</td><td>${esc(p.attempts)}/${esc(p.max_attempts)}</td><td>${esc(p.last_error||'—')}</td><td>${['queued','running'].includes(p.status)?`<button class="small danger" data-cancel="${esc(p.id)}">Cancel</button>`:'—'}</td></tr>`)),'Safety')}
+async function render(view){document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.view===view));const v=view==='insights'?'insights':view==='publications'?'publications':view==='overview'?'all':view;const d=await api(v);cache={...cache,...d};metrics(cache.metrics||{});root.innerHTML=view==='overview'?overview():view==='properties'?properties():view==='leads'?leads():view==='discovery'?discovery():view==='content'?content():view==='review'?review():view==='insights'?insights():view==='jobs'?jobs():view==='publications'?publications():overview();bind()}
+function bind(){document.querySelectorAll('[data-review]').forEach(b=>b.onclick=async()=>{try{await action(b.dataset.decision==='approve'?'review_approve':'review_reject',b.dataset.review);await render('review')}catch(e){alert(e.message)}});document.querySelectorAll('[data-retry]').forEach(b=>b.onclick=async()=>{try{await action('job_retry',b.dataset.retry);await render('jobs')}catch(e){alert(e.message)}});document.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{try{await action('publication_cancel',b.dataset.cancel);await render('publications')}catch(e){alert(e.message)}});document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=async()=>{try{await action('discovery_toggle',b.dataset.toggle,{enabled:b.dataset.enabled==='1'});await render('discovery')}catch(e){alert(e.message)}});document.querySelectorAll('[data-lead]').forEach(b=>b.onclick=async()=>{try{const s=document.querySelector(`[data-lead-select="${b.dataset.lead}"]`);await action('lead_status',b.dataset.lead,{status:s.value});await render('leads')}catch(e){alert(e.message)}})}
+$('#nav').onclick=e=>{const a=e.target.closest('[data-view]');if(!a)return;e.preventDefault();render(a.dataset.view).catch(x=>alert(x.message))};
+$('#loginForm').onsubmit=async e=>{e.preventDefault();$('#loginError').textContent='';const r=await fetch('/api/dashboard/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password:$('#password').value})});if(!r.ok){$('#loginError').textContent='بيانات الدخول غير صحيحة أو السر غير مضبوط.';return}await boot()};
+async function boot(){try{const [d,c]=await Promise.all([api('all'),fetch('/api/public-config').then(r=>r.json())]);cache={...d,brand:c};login.hidden=true;app.hidden=false;health.textContent='Supabase Live';health.classList.add('ok');metrics(d.metrics||{});await render('overview')}catch(e){if(e.message==='AUTH'){login.hidden=false;app.hidden=true;health.textContent='Operator login required';return}health.textContent='Dashboard unavailable';health.classList.add('bad')}}
+boot();
+</script></body></html>
