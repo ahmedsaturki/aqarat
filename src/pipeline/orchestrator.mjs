@@ -2,6 +2,7 @@ import { scorePropertyMatch, chooseCanonical } from '../intelligence/entity-reso
 import { scoreLead } from '../intelligence/lead-scorer.mjs';
 import { buildContentBrief } from '../content/content-planner.mjs';
 import { buildFactualDraft } from '../content/factual-draft.mjs';
+import { buildPersuasionPlan } from '../content/sales-strategy.mjs';
 import { renderSalesCopy, assertPublicCopySafe } from '../content/marketing-policy.mjs';
 import { reviewContent } from '../review/policy.mjs';
 import { buildPublicationJob } from '../publishing/policy.mjs';
@@ -44,10 +45,19 @@ export function buildFactualContent(entity, context = {}) {
 export function buildMarketingContent(entity, channel = 'telegram', context = {}) {
   const facts = buildFactualContent(entity, { channel, ...context });
   const marketingEntity = { ...entity, ...facts.facts };
-  const body = renderSalesCopy(marketingEntity, channel);
+  const persuasion = buildPersuasionPlan(marketingEntity, { channel, ...context });
+  const body = renderSalesCopy(marketingEntity, channel, context);
   const safety = assertPublicCopySafe(body, entity, channel);
   if (!safety.ok) throw new Error('public_marketing_privacy_violation');
-  return { ...facts, body, public_contact_policy: 'lara_brand_only', style: 'sales_marketing' };
+
+  return {
+    ...facts,
+    body,
+    persuasion,
+    public_contact_policy: 'lara_brand_only',
+    style: 'sales_marketing',
+    psychology_policy: 'ethical_influence',
+  };
 }
 
 export function gateContent({ body, confidence, provenanceCount, channel, entity }) {
