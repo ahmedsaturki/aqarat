@@ -30,3 +30,5 @@ A release is Production-verified only when the same Git SHA is proven through al
 ## Rollback rule
 
 Rollback uses a previously verified Production SHA. A rollback must preserve database compatibility with the current migration head. Do not roll back application code across an incompatible database migration.
+
+- Release follow-up commit uses the verified GitHub author email.
