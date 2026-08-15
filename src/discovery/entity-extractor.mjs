@@ -26,6 +26,14 @@ function extractFromJsonLd(jsonLd = []) {
   });
 }
 
+function hasListingSignals({ title = '', description = '', text = '' } = {}) {
+  const combined = `${title} ${description} ${text}`.toLowerCase();
+  const semantic = /(للبيع|للإيجار|for sale|for rent|property|apartment|villa|land|ارض|أرض|شقة|فيلا|محل|مكتب)/i.test(combined);
+  const numeric = /(\d{2,}|\b(مليون|million|m2|sqm|متر|م²|جنيه|egp)\b)/i.test(combined);
+  const transaction = /(للبيع|للإيجار|for sale|for rent)/i.test(combined);
+  return { semantic, numeric, transaction, score: Number(semantic) + Number(numeric) + Number(transaction) };
+}
+
 export function extractCandidates(evidence) {
   const payload = evidence?.extracted_payload ?? {};
   const jsonLd = extractFromJsonLd(payload.json_ld);
@@ -69,16 +77,25 @@ export function extractCandidates(evidence) {
   const sadatSignal = /سادات|sadat city|el sadat/i.test(`${title} ${description} ${text}`);
   if (!sadatSignal) return [];
 
+  // Never promote a generic city/category/index page into a property.
+  // A fallback candidate must contain listing-specific semantic/numeric evidence.
+  const signals = hasListingSignals({ title, description, text });
+  const fallbackPhone = normalizePhone(firstNonEmpty(payload.phone, payload.telephone));
+  if (signals.score < 2 && !fallbackPhone) return [];
+
   return [{
     entity_type: 'property',
     name: title || null,
-    phone: null,
+    phone: fallbackPhone,
     address: null,
     city: 'Sadat City',
     source_url: evidence.canonical_url || evidence.source_url || null,
-    confidence: 0.35,
-    attributes: { extracted_without_structured_markup: true },
+    confidence: signals.transaction && signals.numeric ? 0.55 : 0.4,
+    attributes: {
+      extracted_without_structured_markup: true,
+      listing_signals: signals,
+    },
   }];
 }
 
-export { normalizePhone };
+export { normalizePhone, hasListingSignals };
