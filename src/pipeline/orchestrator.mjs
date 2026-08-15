@@ -54,7 +54,7 @@ export function buildFactualContent(entity, context = {}) {
 export function buildMarketingContent(entity, channel = 'telegram', context = {}) {
   const facts = buildFactualContent(entity, { channel, ...context });
   const marketingEntity = { ...entity, ...facts.facts };
-  const persuasion = buildPersuasionPlan(marketingEntity, { channel, ...context });
+  const persuasion = buildPersuasionPlan({ ...marketingEntity, price: undefined, currency: undefined }, { channel, ...context });
   const body = renderSalesCopy(marketingEntity, channel, context);
   const safety = assertPublicCopySafe(body, entity, channel);
   if (!safety.ok) throw new Error('public_marketing_privacy_violation');
@@ -63,7 +63,8 @@ export function buildMarketingContent(entity, channel = 'telegram', context = {}
     ...facts,
     body,
     persuasion,
-    public_contact_policy: 'lara_brand_only',
+    public_contact_policy: 'configurable_brand_only',
+    public_price_policy: 'never_publish_internal_price',
     style: 'sales_marketing',
     psychology_policy: 'ethical_influence',
   };
@@ -87,12 +88,11 @@ export function buildPipelineDecision({ entity, leadSignal = {}, interestSignal 
   const interest = interestSignal ? classifyInterest({ text: interestSignal.text, property: entity, channel }) : null;
   const interest_profile = interest && personId ? prepareInterestProfile({ personId, signal: interest, property: entity }) : null;
 
-  // Never allow caller-supplied copy containing private seller/source data to
-  // disappear silently merely because the pipeline later regenerates copy.
-  // Treat the supplied draft as a sensitive upstream artifact and reject a
-  // leak before rendering the controlled public version.
   if (content != null && String(content).trim() !== '') {
-    const upstreamSafety = assertPublicCopySafe(String(content), entity, 'internal');
+    const upstreamSafety = assertPublicCopySafe(String(content), entity, 'internal', {
+      checkPrice: false,
+      allowConfiguredContact: false,
+    });
     if (!upstreamSafety.ok && upstreamSafety.forbidden_values?.length > 0) {
       throw new Error('public_marketing_privacy_violation');
     }
