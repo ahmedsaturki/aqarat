@@ -1,10 +1,12 @@
 import http from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 
 const PORT = Number(process.env.PORT || 8787);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+const INTAKE_WEBHOOK_SECRET = process.env.INTAKE_WEBHOOK_SECRET || '';
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
 
 function json(res, status, payload) {
@@ -15,6 +17,16 @@ function json(res, status, payload) {
     'cache-control': 'no-store',
   });
   res.end(body);
+}
+
+function safeEqual(expected, actual) {
+  const a = Buffer.from(String(expected || ''));
+  const b = Buffer.from(String(actual || ''));
+  return a.length > 0 && a.length === b.length && timingSafeEqual(a, b);
+}
+
+function authorizedIntake(req) {
+  return Boolean(INTAKE_WEBHOOK_SECRET) && safeEqual(INTAKE_WEBHOOK_SECRET, req.headers['x-aqarat-intake-secret']);
 }
 
 function readBody(req) {
@@ -80,16 +92,12 @@ async function supabase(path, options = {}) {
     error.body = body;
     throw error;
   }
-
   return body;
 }
 
 async function findExistingIntakeEvent(event) {
   if (!event.external_event_id) return null;
-  const existing = await supabase(
-    `/rest/v1/intake_events?channel=eq.${encodeURIComponent(event.channel)}&external_event_id=eq.${encodeURIComponent(event.external_event_id)}&select=id,status,parsed_payload,raw_text&limit=1`,
-    { method: 'GET' },
-  );
+  const existing = await supabase(`/rest/v1/intake_events?channel=eq.${encodeURIComponent(event.channel)}&external_event_id=eq.${encodeURIComponent(event.external_event_id)}&select=id,status,parsed_payload,raw_text&limit=1`);
   return existing?.[0] ?? null;
 }
 
@@ -111,7 +119,6 @@ async function persistIntakeEvent(event) {
         status: 'received',
       }),
     });
-
     if (Array.isArray(rows) && rows[0]?.id) return rows[0];
   } catch (error) {
     if (error.status !== 409) throw error;
@@ -119,7 +126,6 @@ async function persistIntakeEvent(event) {
     if (raced) return raced;
     throw error;
   }
-
   throw new Error('intake_event_persisted_but_not_returned');
 }
 
@@ -131,62 +137,36 @@ async function commitIntakeEvent(eventId) {
 }
 
 function authorizedTelegram(req) {
-  if (!TELEGRAM_WEBHOOK_SECRET) return true;
-  return req.headers['x-telegram-bot-api-secret-token'] === TELEGRAM_WEBHOOK_SECRET;
+  return Boolean(TELEGRAM_WEBHOOK_SECRET) && safeEqual(TELEGRAM_WEBHOOK_SECRET, req.headers['x-telegram-bot-api-secret-token']);
 }
 
 async function handle(req, res) {
-  if (req.method === 'GET' && req.url === '/healthz') {
-    return json(res, 200, { ok: true, service: 'aqarat-intake', version: 'v1' });
-  }
+  if (req.method === 'GET' && req.url === '/healthz') return json(res, 200, { ok: true, service: 'aqarat-intake', version: 'v1' });
 
-  if (req.method !== 'POST' || !['/intake', '/telegram/update'].includes(req.url)) {
-    return json(res, 404, { ok: false, error: 'not_found' });
-  }
+  if (req.method !== 'POST' || !['/intake', '/telegram/update'].includes(req.url)) return json(res, 404, { ok: false, error: 'not_found' });
 
-  if (req.url === '/telegram/update' && !authorizedTelegram(req)) {
-    return json(res, 401, { ok: false, error: 'telegram_webhook_unauthorized' });
-  }
+  if (req.url === '/intake' && !authorizedIntake(req)) return json(res, 401, { ok: false, error: 'intake_unauthorized' });
+  if (req.url === '/telegram/update' && !authorizedTelegram(req)) return json(res, 401, { ok: false, error: 'telegram_webhook_unauthorized' });
 
   try {
     const payload = await readBody(req);
-    const event = req.url === '/telegram/update'
-      ? telegramUpdateToIntakeEvent(payload)
-      : payload;
-
-    if (!event?.raw_text || !event?.channel) {
-      return json(res, 422, { ok: false, error: 'invalid_intake_contract' });
-    }
+    const event = req.url === '/telegram/update' ? telegramUpdateToIntakeEvent(payload) : payload;
+    if (!event?.raw_text || !event?.channel) return json(res, 422, { ok: false, error: 'invalid_intake_contract' });
 
     const stored = await persistIntakeEvent(event);
     const result = await commitIntakeEvent(stored.id);
-
-    return json(res, 200, {
-      ok: true,
-      intake_event_id: stored.id,
-      result,
-    });
+    return json(res, 200, { ok: true, intake_event_id: stored.id, result });
   } catch (error) {
     const status = error.status === 401 || error.status === 403 ? 502 : 500;
-    console.error(JSON.stringify({
-      event: 'intake_error',
-      error: error.message,
-      body: error.body ?? null,
-    }));
-    return json(res, status, { ok: false, error: error.message });
+    console.error(JSON.stringify({ event: 'intake_error', error: error.message }));
+    return json(res, status, { ok: false, error: status === 502 ? 'upstream_unavailable' : 'internal_error' });
   }
 }
 
 const server = http.createServer((req, res) => {
-  handle(req, res).catch((error) => {
-    console.error(error);
-    json(res, 500, { ok: false, error: 'internal_error' });
-  });
+  handle(req, res).catch(() => json(res, 500, { ok: false, error: 'internal_error' }));
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Aqarat intake runtime listening on :${PORT}`);
-});
-
+server.listen(PORT, '0.0.0.0', () => console.log(`Aqarat intake runtime listening on :${PORT}`));
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
 process.on('SIGINT', () => server.close(() => process.exit(0)));
