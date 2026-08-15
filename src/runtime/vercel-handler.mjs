@@ -1,23 +1,38 @@
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const INTAKE_WEBHOOK_SECRET = process.env.INTAKE_WEBHOOK_SECRET || '';
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
+const ALLOWED_INTAKE_CHANNELS = new Set(['telegram', 'website', 'manual']);
 
-function json(res, status, payload) {
-  const body = JSON.stringify(payload);
+function json(res, status, payload, correlationId) {
+  const body = JSON.stringify({ ...payload, correlation_id: correlationId });
   res.statusCode = status;
   res.setHeader('content-type', 'application/json; charset=utf-8');
   res.setHeader('content-length', String(Buffer.byteLength(body)));
   res.setHeader('cache-control', 'no-store');
+  res.setHeader('x-aqarat-correlation-id', correlationId);
   res.end(body);
 }
 
 function requireRuntimeConfig() {
   if (!SUPABASE_URL) throw new Error('SUPABASE_URL_required');
   if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY_required');
+}
+
+function safeEqual(expected, actual) {
+  const a = Buffer.from(String(expected || ''));
+  const b = Buffer.from(String(actual || ''));
+  return a.length > 0 && a.length === b.length && timingSafeEqual(a, b);
+}
+
+function authorizedIntake(req) {
+  if (!INTAKE_WEBHOOK_SECRET) return false;
+  return safeEqual(INTAKE_WEBHOOK_SECRET, req.headers['x-aqarat-intake-secret']);
 }
 
 async function supabase(path, options = {}) {
@@ -142,9 +157,7 @@ async function sendTelegramMessage(chatId, text) {
       body: JSON.stringify({ chat_id: chatId, text }),
     });
     const payload = await response.json().catch(() => null);
-    if (!response.ok || payload?.ok === false) {
-      return { sent: false, reason: 'telegram_send_failed' };
-    }
+    if (!response.ok || payload?.ok === false) return { sent: false, reason: 'telegram_send_failed' };
     return { sent: true };
   } catch {
     return { sent: false, reason: 'telegram_send_error' };
@@ -152,12 +165,12 @@ async function sendTelegramMessage(chatId, text) {
 }
 
 function authorizedTelegram(req) {
-  if (!TELEGRAM_WEBHOOK_SECRET) return true;
-  return req.headers['x-telegram-bot-api-secret-token'] === TELEGRAM_WEBHOOK_SECRET;
+  if (!TELEGRAM_WEBHOOK_SECRET) return false;
+  return safeEqual(TELEGRAM_WEBHOOK_SECRET, req.headers['x-telegram-bot-api-secret-token']);
 }
 
 async function processEvent(event) {
-  if (!event?.raw_text || !event?.channel) {
+  if (!event?.raw_text || !event?.channel || !ALLOWED_INTAKE_CHANNELS.has(String(event.channel).toLowerCase())) {
     const error = new Error('invalid_intake_contract');
     error.status = 422;
     throw error;
@@ -166,45 +179,46 @@ async function processEvent(event) {
   const stored = await persistIntakeEvent(event);
   const result = await commitIntakeEvent(stored.id);
 
-  return {
-    ok: true,
-    intake_event_id: stored.id,
-    result,
-  };
+  return { ok: true, intake_event_id: stored.id, result };
+}
+
+function productionError(error) {
+  const status = error.status === 422 ? 422 : error.status === 401 || error.status === 403 ? 502 : 500;
+  const publicError = status === 422 ? 'invalid_intake_request' : status === 502 ? 'upstream_unavailable' : 'internal_error';
+  return { status, error: publicError };
 }
 
 export async function handleHealth(_req, res) {
+  const correlationId = randomUUID();
   return json(res, 200, {
     ok: true,
     service: 'aqarat-intake',
     version: 'v1',
     telegram_token_configured: Boolean(TELEGRAM_BOT_TOKEN),
-  });
+    intake_secret_configured: Boolean(INTAKE_WEBHOOK_SECRET),
+  }, correlationId);
 }
 
 export async function handleIntake(req, res) {
-  if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' });
+  const correlationId = randomUUID();
+  if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' }, correlationId);
+  if (!authorizedIntake(req)) return json(res, 401, { ok: false, error: 'intake_unauthorized' }, correlationId);
 
   try {
     const payload = await readBody(req);
     const result = await processEvent(payload);
-    return json(res, 200, result);
+    return json(res, 200, result, correlationId);
   } catch (error) {
-    const status = error.status === 422 ? 422 : error.status === 401 || error.status === 403 ? 502 : 500;
-    console.error(JSON.stringify({
-      event: 'intake_error',
-      error: error.message,
-      body: error.body ?? null,
-    }));
-    return json(res, status, { ok: false, error: error.message });
+    const mapped = productionError(error);
+    console.error(JSON.stringify({ event: 'intake_error', correlation_id: correlationId, error: error.message }));
+    return json(res, mapped.status, { ok: false, error: mapped.error }, correlationId);
   }
 }
 
 export async function handleTelegramUpdate(req, res) {
-  if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' });
-  if (!authorizedTelegram(req)) {
-    return json(res, 401, { ok: false, error: 'telegram_webhook_unauthorized' });
-  }
+  const correlationId = randomUUID();
+  if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' }, correlationId);
+  if (!authorizedTelegram(req)) return json(res, 401, { ok: false, error: 'telegram_webhook_unauthorized' }, correlationId);
 
   try {
     const payload = await readBody(req);
@@ -214,14 +228,10 @@ export async function handleTelegramUpdate(req, res) {
       event.chat_id,
       '✅ وصلت رسالتك. تم تسجيل البيانات وبدء المعالجة في Aqarat OS.',
     );
-    return json(res, 200, { ...result, acknowledgement });
+    return json(res, 200, { ...result, acknowledgement }, correlationId);
   } catch (error) {
-    const status = error.status === 422 ? 422 : error.status === 401 || error.status === 403 ? 502 : 500;
-    console.error(JSON.stringify({
-      event: 'telegram_intake_error',
-      error: error.message,
-      body: error.body ?? null,
-    }));
-    return json(res, status, { ok: false, error: error.message });
+    const mapped = productionError(error);
+    console.error(JSON.stringify({ event: 'telegram_intake_error', correlation_id: correlationId, error: error.message }));
+    return json(res, mapped.status, { ok: false, error: mapped.error }, correlationId);
   }
 }
