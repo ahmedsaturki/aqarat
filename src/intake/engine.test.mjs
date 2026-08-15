@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildIntakeEvent, parseNaturalLanguageProperty, propertyDedupKey } from './engine.mjs';
+import { buildIntakeEvent, parseNaturalLanguageProperty, propertyDedupKey, validatePropertyCandidate } from './engine.mjs';
 
 test('parses Arabic Sadat apartment listing into a valid candidate', () => {
   const input = 'شقة 120 متر في المنطقة السابعة بمدينة السادات، الدور الثالث، 3 غرف، 2 حمام، تشطيب جيد، للبيع 2.4 مليون جنيه. التواصل واتساب 01012345678';
@@ -70,7 +70,7 @@ test('builds idempotent intake envelope', () => {
   const event = buildIntakeEvent({ channel: 'telegram', externalEventId: 'tg-100', senderId: '42', chatId: '99', rawText: 'فيلا 300 متر في مدينة السادات للبيع 5 مليون 01012345678' });
   assert.equal(event.channel, 'telegram');
   assert.equal(event.external_event_id, 'tg-100');
-  assert.equal(event.parsed_payload.parser.name, 'aqarat-deterministic-intake-v2');
+  assert.equal(event.parsed_payload.parser.name, 'aqarat-deterministic-intake-v3');
   assert.equal(event.parsed_payload.property.price, 5000000);
 });
 
@@ -78,4 +78,26 @@ test('dedup key is stable for equivalent candidates', () => {
   const a = { city: 'مدينة السادات', district: 'المنطقة السابعة', property_type: 'apartment', transaction_type: 'sale', area_m2: 120, price: 2400000, bedrooms: 3, bathrooms: 2 };
   const b = { ...a };
   assert.equal(propertyDedupKey(a), propertyDedupKey(b));
+});
+
+test('rejects non-string and oversized intake text before parsing', () => {
+  assert.throws(() => parseNaturalLanguageProperty(null), (error) => error.message === 'raw_text_type_invalid' && error.status === 422);
+  assert.throws(() => parseNaturalLanguageProperty('x'.repeat(4001)), (error) => error.message === 'raw_text_too_long' && error.status === 422);
+});
+
+test('rejects invalid contact and impossible numeric values', () => {
+  const { parsed, validation } = parseNaturalLanguageProperty('شقة 0 متر في مدينة السادات، 101 غرفة، للبيع 0 جنيه، التواصل 0112345678');
+  assert.equal(validation.valid, false);
+  assert.ok(validation.errors.includes('area_invalid'));
+  assert.ok(validation.errors.includes('price_invalid'));
+  assert.ok(validation.errors.includes('room_count_invalid'));
+  const contactValidation = validatePropertyCandidate({ ...parsed, contacts: [{ normalized_value: '+201234' }] });
+  assert.ok(contactValidation.errors.includes('contact_invalid'));
+});
+
+test('keeps plausible outliers as warnings rather than silently accepting them', () => {
+  const { validation } = parseNaturalLanguageProperty('أرض 1000001 متر في مدينة السادات رقم القطعة 662 للبيع 101 مليار 01012345678');
+  assert.equal(validation.valid, true);
+  assert.ok(validation.warnings.includes('area_outlier'));
+  assert.ok(validation.warnings.includes('price_outlier'));
 });
