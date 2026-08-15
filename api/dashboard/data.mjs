@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     if (view === 'all' || view === 'kpis') {
       const [properties, leads, sources, reviews, jobs, publications, discoveryRuns, intakes, interests, interactions, audits] = await Promise.all([
         count('properties'), count('leads'), count('discovery_sources', '&enabled=eq.true'), count('review_queue', '&status=eq.pending'),
-        count('jobs', '&status=in.(queued,running,retry)'), count('publication_jobs', '&status=in.(queued,running)'),
+        count('jobs', '&status=in.(queued,running)'), count('publication_jobs', '&status=in.(queued,running)'),
         count('discovery_runs', '&status=in.(queued,running)'), count('intake_events', '&status=eq.processed'), count('interests'), count('interactions'), count('audit_events'),
       ]);
       if (view === 'kpis') return json(res, 200, { ok: true, metrics: { properties, leads, active_sources: sources, pending_reviews: reviews, active_jobs: jobs, active_publications: publications, active_discovery_runs: discoveryRuns, processed_intakes: intakes, interests, interactions, audit_events: audits } });
