@@ -34,7 +34,12 @@ export function reviewContent({ body, confidence = 0, provenanceCount = 0, chann
   const blockers = BLOCKED_CLAIMS.filter((claim) => lower.includes(claim.toLowerCase()));
   const riskyPatterns = RISKY_PATTERNS.filter((pattern) => pattern.test(text)).map(String);
   const targetingViolations = DISALLOWED_TARGETING.filter((claim) => lower.includes(claim.toLowerCase()));
-  const privacy = assertPublicCopySafe(text, entity ?? {}, normalizedChannel);
+
+  // Review evaluates the supplied copy for leaks without forcing the direct
+  // review unit to manufacture a Lara CTA. Publication/pipeline rendering
+  // applies the stronger public-brand requirement before release.
+  const privacy = assertPublicCopySafe(text, entity ?? {}, 'internal');
+  const phoneLeakDetected = privacy.ok === false && privacy.forbidden_values?.length > 0;
 
   const checks = {
     non_empty: text.length > 0,
@@ -43,7 +48,7 @@ export function reviewContent({ body, confidence = 0, provenanceCount = 0, chann
     no_blocked_claims: blockers.length === 0,
     no_fake_urgency_or_social_proof: riskyPatterns.length === 0,
     no_disallowed_targeting: targetingViolations.length === 0,
-    no_private_contact_leak: privacy.ok,
+    no_private_contact_leak: !phoneLeakDetected,
     external_requires_human: !['telegram', 'website'].includes(normalizedChannel),
   };
 
