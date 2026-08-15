@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 const HANDLERS = {
   'healthz': () => import('../src/api-routes/healthz.mjs'),
   'healthz/deep': () => import('../src/api-routes/healthz/deep.mjs'),
@@ -14,11 +16,33 @@ const HANDLERS = {
   'dashboard/overview': () => import('../src/api-routes/dashboard/overview.mjs'),
 };
 
-function json(res, status, payload) {
+function correlationIdFromRequest(req) {
+  const candidate = req?.headers?.['x-correlation-id'];
+  return /^[a-zA-Z0-9._:-]{1,128}$/.test(String(candidate || ''))
+    ? String(candidate)
+    : randomUUID();
+}
+
+function applySecurityHeaders(res, correlationId) {
+  res.setHeader('x-correlation-id', correlationId);
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('x-frame-options', 'DENY');
+  res.setHeader('referrer-policy', 'no-referrer');
+  res.setHeader('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('cross-origin-resource-policy', 'same-origin');
+  res.setHeader('content-security-policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+  if (process.env.VERCEL_ENV === 'production') {
+    res.setHeader('strict-transport-security', 'max-age=31536000; includeSubDomains');
+  }
+}
+
+function json(res, status, payload, correlationId) {
+  const body = JSON.stringify({ ...payload, correlation_id: correlationId });
   res.statusCode = status;
   res.setHeader('content-type', 'application/json; charset=utf-8');
+  res.setHeader('content-length', String(Buffer.byteLength(body)));
   res.setHeader('cache-control', 'no-store');
-  res.end(JSON.stringify(payload));
+  res.end(body);
 }
 
 function routeFromRequest(req) {
@@ -29,16 +53,19 @@ function routeFromRequest(req) {
 }
 
 export default async function handler(req, res) {
+  const correlationId = correlationIdFromRequest(req);
+  applySecurityHeaders(res, correlationId);
+  req.aqaratCorrelationId = correlationId;
   const route = routeFromRequest(req);
   const load = HANDLERS[route];
-  if (!load) return json(res, 404, { ok: false, error: 'route_not_found' });
+  if (!load) return json(res, 404, { ok: false, error: 'route_not_found' }, correlationId);
 
   try {
     const module = await load();
     return module.default(req, res);
   } catch (error) {
-    console.error(JSON.stringify({ event: 'api_route_error', route, error: error?.message || String(error) }));
-    return json(res, 500, { ok: false, error: 'internal_server_error' });
+    console.error(JSON.stringify({ event: 'api_route_error', route, correlation_id: correlationId, error: error?.message || String(error) }));
+    return json(res, 500, { ok: false, error: 'internal_server_error' }, correlationId);
   }
 }
 

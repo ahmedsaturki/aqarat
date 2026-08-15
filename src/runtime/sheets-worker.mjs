@@ -1,10 +1,10 @@
 import { buildSheetsProjection } from '../workers/sheets-worker.mjs';
+import { OUTBOUND_TIMEOUT_MS } from './runtime-config.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const GOOGLE_SHEETS_WEBHOOK_URL = process.env.GOOGLE_SHEETS_WEBHOOK_URL || '';
 const GOOGLE_SHEETS_WEBHOOK_SECRET = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET || '';
-const OUTBOUND_TIMEOUT_MS = Math.max(1000, Number(process.env.OUTBOUND_TIMEOUT_MS || 15000));
 
 async function timedFetch(url, options = {}) {
   const controller = new AbortController();

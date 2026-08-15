@@ -9,6 +9,9 @@ on:
     paths:
       - '.github/workflows/process-discovery.yml'
 
+permissions:
+  contents: read
+
 jobs:
   discovery:
     runs-on: ubuntu-latest

@@ -8,9 +8,16 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: aqarat-sheets-worker
+  cancel-in-progress: false
+
 jobs:
   process:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: production
     steps:
       - name: Process queued Google Sheets jobs
@@ -22,6 +29,8 @@ jobs:
           test -n "$AQRAT_RUNTIME_URL"
           test -n "$JOB_RUNNER_SECRET"
           curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --retry-delay 2 \
             --max-time 30 \
             -X POST \
             -H 'content-type: application/json' \

@@ -13,6 +13,13 @@ on:
       - 'test/deep-health.test.mjs'
       - '.github/workflows/verify-production.yml'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: aqarat-production-verification-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   unit:
     runs-on: ubuntu-latest
@@ -22,8 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Run tests
-        run: npm test
+      - name: Run tests and syntax checks
+        run: npm run check
 
   production:
     runs-on: ubuntu-latest
@@ -51,6 +58,8 @@ jobs:
           set -eu
           test -n "$AQARAT_RELEASE_URL"
           curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --retry-delay 2 \
             --max-time 30 \
             -H "x-aqarat-health-secret: ${DEEP_HEALTH_SECRET}" \
             "${AQARAT_RELEASE_URL}/api/healthz/deep"

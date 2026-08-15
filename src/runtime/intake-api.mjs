@@ -1,13 +1,13 @@
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
+import { MAX_BODY_BYTES } from './runtime-config.mjs';
 
 const PORT = Number(process.env.PORT || 8787);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const INTAKE_WEBHOOK_SECRET = process.env.INTAKE_WEBHOOK_SECRET || '';
-const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
 
 function json(res, status, payload) {
   const body = JSON.stringify(payload);

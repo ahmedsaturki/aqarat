@@ -1,13 +1,12 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
+import { MAX_BODY_BYTES, OUTBOUND_TIMEOUT_MS } from './runtime-config.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const INTAKE_WEBHOOK_SECRET = process.env.INTAKE_WEBHOOK_SECRET || '';
-const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
-const OUTBOUND_TIMEOUT_MS = Math.max(1000, Number(process.env.OUTBOUND_TIMEOUT_MS || 15000));
 const ALLOWED_INTAKE_CHANNELS = new Set(['telegram', 'website', 'manual']);
 
 function json(res, status, payload, correlationId) {
@@ -174,14 +173,14 @@ function productionError(error) {
   return { status, error: status === 422 ? 'invalid_intake_request' : status === 502 ? 'upstream_unavailable' : 'internal_error' };
 }
 
-export async function handleHealth(_req, res) {
-  const correlationId = randomUUID();
+export async function handleHealth(req, res) {
+  const correlationId = req?.aqaratCorrelationId || randomUUID();
   const release = String(process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || '').trim();
   return json(res, 200, { ok: true, service: 'aqarat-intake', ...(release ? { release } : {}) }, correlationId);
 }
 
 export async function handleIntake(req, res) {
-  const correlationId = randomUUID();
+  const correlationId = req?.aqaratCorrelationId || randomUUID();
   if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' }, correlationId);
   if (!productionOnly()) return json(res, 404, { ok: false, error: 'external_integrations_disabled_in_preview' }, correlationId);
   if (!authorizedIntake(req)) return json(res, 401, { ok: false, error: 'intake_unauthorized' }, correlationId);
@@ -198,7 +197,7 @@ export async function handleIntake(req, res) {
 }
 
 export async function handleTelegramUpdate(req, res) {
-  const correlationId = randomUUID();
+  const correlationId = req?.aqaratCorrelationId || randomUUID();
   if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' }, correlationId);
   if (!productionOnly()) return json(res, 404, { ok: false, error: 'external_integrations_disabled_in_preview' }, correlationId);
   if (!authorizedTelegram(req)) return json(res, 401, { ok: false, error: 'telegram_webhook_unauthorized' }, correlationId);

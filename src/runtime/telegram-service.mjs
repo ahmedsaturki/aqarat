@@ -1,11 +1,10 @@
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
+import { MAX_BODY_BYTES, OUTBOUND_TIMEOUT_MS } from './runtime-config.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
-const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
-const OUTBOUND_TIMEOUT_MS = Math.max(1000, Number(process.env.OUTBOUND_TIMEOUT_MS || 15000));
 
 async function timedFetch(url, options = {}) {
   const controller = new AbortController();
