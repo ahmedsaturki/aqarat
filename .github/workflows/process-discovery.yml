@@ -1,8 +1,6 @@
 name: process-discovery
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
@@ -22,7 +20,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Drain discovery queue
+      - name: Drain canonical discovery queue
         env:
           SUPABASE_URL: https://aaxauqznfhcvgevfczye.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -31,7 +29,7 @@ jobs:
           set +e
           failures=0
           for attempt in 1 2 3 4 5 6; do
-            echo "=== DISCOVERY QUEUE PASS ${attempt}/6 ==="
+            echo "=== CANONICAL DISCOVERY QUEUE PASS ${attempt}/6 ==="
             node src/discovery/worker-http.mjs
             rc=$?
             if [ "$rc" -ne 0 ]; then
@@ -40,4 +38,3 @@ jobs:
           done
           echo "DISCOVERY_FAILURE_PASSES=$failures"
           exit "$failures"
-# queue-drain verification after schema and adapter hardening
