@@ -1,5 +1,5 @@
 import { dashboardSessionValid } from './login.mjs';
-import { rankPropertyMatches, rankPropertyOpportunities } from '../../src/intelligence/scoring.mjs';
+import { rankPropertyMatches, rankPropertyOpportunities } from '../../intelligence/scoring.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');

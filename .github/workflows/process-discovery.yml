@@ -26,10 +26,13 @@ jobs:
 
       - name: Drain canonical discovery queue
         env:
-          SUPABASE_URL: https://aaxauqznfhcvgevfczye.supabase.co
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DISCOVERY_WORKER_NAME: github-actions-discovery
         run: |
+          set -eu
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
           set +e
           failures=0
           for attempt in 1 2 3 4 5 6; do

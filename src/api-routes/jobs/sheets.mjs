@@ -1,4 +1,4 @@
-import { processSheetsJobs } from '../../src/runtime/sheets-worker.mjs';
+import { processSheetsJobs } from '../../runtime/sheets-worker.mjs';
 
 function json(res, status, payload) {
   const body = JSON.stringify(payload);

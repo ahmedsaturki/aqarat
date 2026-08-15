@@ -38,14 +38,18 @@ jobs:
           node-version: 24
       - name: Verify public release contract
         env:
-          AQARAT_RELEASE_URL: https://aqarat-eg.vercel.app
-        run: node scripts/verify-release.mjs
+          AQARAT_RELEASE_URL: ${{ vars.AQARAT_RELEASE_URL }}
+        run: |
+          set -eu
+          test -n "$AQARAT_RELEASE_URL"
+          node scripts/verify-release.mjs
       - name: Run authenticated deep health check
         if: env.DEEP_HEALTH_SECRET != ''
         env:
-          AQARAT_RELEASE_URL: https://aqarat-eg.vercel.app
+          AQARAT_RELEASE_URL: ${{ vars.AQARAT_RELEASE_URL }}
         run: |
           set -eu
+          test -n "$AQARAT_RELEASE_URL"
           curl --fail-with-body --silent --show-error \
             --max-time 30 \
             -H "x-aqarat-health-secret: ${DEEP_HEALTH_SECRET}" \

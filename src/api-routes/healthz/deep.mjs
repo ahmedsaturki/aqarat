@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { collectDeepHealth } from '../../src/runtime/deep-health.mjs';
+import { collectDeepHealth } from '../../runtime/deep-health.mjs';
 
 function json(res, status, payload) {
   res.statusCode = status;

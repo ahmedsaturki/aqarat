@@ -7,6 +7,7 @@ const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const INTAKE_WEBHOOK_SECRET = process.env.INTAKE_WEBHOOK_SECRET || '';
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
+const OUTBOUND_TIMEOUT_MS = Math.max(1000, Number(process.env.OUTBOUND_TIMEOUT_MS || 15000));
 const ALLOWED_INTAKE_CHANNELS = new Set(['telegram', 'website', 'manual']);
 
 function json(res, status, payload, correlationId) {
@@ -16,6 +17,23 @@ function json(res, status, payload, correlationId) {
   res.setHeader('content-length', String(Buffer.byteLength(body)));
   res.setHeader('cache-control', 'no-store');
   res.end(body);
+}
+
+async function timedFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OUTBOUND_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeout = new Error('outbound_request_timeout');
+      timeout.code = 'TIMEOUT';
+      throw timeout;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function requireRuntimeConfig() {
@@ -40,7 +58,7 @@ function authorizedIntake(req) {
 
 async function supabase(path, options = {}) {
   requireRuntimeConfig();
-  const response = await fetch(`${SUPABASE_URL}${path}`, {
+  const response = await timedFetch(`${SUPABASE_URL}${path}`, {
     ...options,
     headers: {
       apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -56,7 +74,6 @@ async function supabase(path, options = {}) {
   if (!response.ok) {
     const error = new Error(`supabase_http_${response.status}`);
     error.status = response.status;
-    error.body = body;
     throw error;
   }
   return body;
@@ -128,7 +145,7 @@ async function commitIntakeEvent(eventId) {
 async function sendTelegramMessage(chatId, text) {
   if (!TELEGRAM_BOT_TOKEN || chatId == null) return { sent: false, reason: 'telegram_bot_not_configured' };
   try {
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const response = await timedFetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text }),
     });
     const payload = await response.json().catch(() => null);

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -6,6 +5,24 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 256 * 1024);
+const OUTBOUND_TIMEOUT_MS = Math.max(1000, Number(process.env.OUTBOUND_TIMEOUT_MS || 15000));
+
+async function timedFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OUTBOUND_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeout = new Error('outbound_request_timeout');
+      timeout.code = 'TIMEOUT';
+      throw timeout;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function requireConfig() {
   if (!SUPABASE_URL) throw new Error('SUPABASE_URL_required');
@@ -14,7 +31,7 @@ function requireConfig() {
 
 async function supabase(path, options = {}) {
   requireConfig();
-  const response = await fetch(`${SUPABASE_URL}${path}`, {
+  const response = await timedFetch(`${SUPABASE_URL}${path}`, {
     ...options,
     headers: {
       apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -29,7 +46,6 @@ async function supabase(path, options = {}) {
   if (!response.ok) {
     const error = new Error(`supabase_http_${response.status}`);
     error.status = response.status;
-    error.body = body;
     throw error;
   }
   return body;
@@ -79,19 +95,12 @@ async function commit(eventId) {
 
 function authorized(headers = {}) {
   if (!TELEGRAM_WEBHOOK_SECRET) return true;
-  return headers['x-telegram-bot-api-secret-token'] === normalizedTelegramWebhookSecret();
-}
-
-function normalizedTelegramWebhookSecret() {
-  if (!TELEGRAM_WEBHOOK_SECRET) return '';
-  // Telegram's secret_token accepts only ASCII letters, digits, '_' and '-'.
-  // Hashing preserves a stable server-side secret while guaranteeing a valid token.
-  return createHash('sha256').update(String(TELEGRAM_WEBHOOK_SECRET)).digest('base64url');
+  return headers['x-telegram-bot-api-secret-token'] === TELEGRAM_WEBHOOK_SECRET;
 }
 
 async function telegramApi(method, body) {
   if (!TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN_not_configured');
-  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
+  const response = await timedFetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -102,7 +111,6 @@ async function telegramApi(method, body) {
   if (!response.ok || payload?.ok === false) {
     const error = new Error(`telegram_api_${response.status}`);
     error.status = response.status;
-    error.body = payload;
     throw error;
   }
   return payload;
@@ -163,7 +171,7 @@ export async function getTelegramStatus({ autoRegister = true, webhookUrl } = {}
   if (autoRegister && webhookUrl && webhook?.result?.url !== webhookUrl) {
     await telegramApi('setWebhook', {
       url: webhookUrl,
-      ...(TELEGRAM_WEBHOOK_SECRET ? { secret_token: normalizedTelegramWebhookSecret() } : {}),
+      ...(TELEGRAM_WEBHOOK_SECRET ? { secret_token: TELEGRAM_WEBHOOK_SECRET } : {}),
       allowed_updates: ['message', 'edited_message', 'channel_post'],
       drop_pending_updates: false,
     });
