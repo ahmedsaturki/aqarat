@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
+    env:
+      DEEP_HEALTH_SECRET: ${{ secrets.DASHBOARD_ADMIN_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,16 +41,15 @@ jobs:
           AQARAT_RELEASE_URL: https://aqarat-eg.vercel.app
         run: node scripts/verify-release.mjs
       - name: Run authenticated deep health check
-        if: ${{ secrets.DASHBOARD_ADMIN_SECRET != '' }}
+        if: env.DEEP_HEALTH_SECRET != ''
         env:
           AQARAT_RELEASE_URL: https://aqarat-eg.vercel.app
-          AQRAT_HEALTH_SECRET: ${{ secrets.DASHBOARD_ADMIN_SECRET }}
         run: |
           set -eu
           curl --fail-with-body --silent --show-error \
             --max-time 30 \
-            -H "x-aqarat-health-secret: ${AQRAT_HEALTH_SECRET}" \
+            -H "x-aqarat-health-secret: ${DEEP_HEALTH_SECRET}" \
             "${AQARAT_RELEASE_URL}/api/healthz/deep"
       - name: Report deep health skipped when secret is unavailable
-        if: ${{ secrets.DASHBOARD_ADMIN_SECRET == '' }}
+        if: env.DEEP_HEALTH_SECRET == ''
         run: echo 'DASHBOARD_ADMIN_SECRET is not configured in GitHub production environment; deep external-provider health check skipped.'
