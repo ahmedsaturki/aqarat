@@ -3,8 +3,14 @@
 ## System boundaries
 
 ```text
-Telegram / operator UI
-        |
+                         +----------------------+
+                         |   Operator Control   |
+                         | Dashboard / Review   |
+                         +----------+-----------+
+                                    |
+Telegram / operator UI               |
+        |                            |
+        +----------------------------+
         v
    Intake API
         |
@@ -20,6 +26,7 @@ Telegram / operator UI
         +----> discovery jobs
         +----> content jobs
         +----> publication queue
+        +----> analytics / insights
 ```
 
 ## Core principles
@@ -39,7 +46,13 @@ Playwright/Crawlee are the deterministic baseline. An AI browser agent may be us
 ### 5. Distribution is a queue
 Generation and publication are separate. A publication job can be reviewed, approved, retried, cancelled or marked blocked without changing the underlying property.
 
-### 6. External platforms
+### 6. Public identity is configuration
+All public marketing uses a configurable company/office identity: brand name, phone, WhatsApp and website. Changing the marketing company must not require changes to parsing, matching, intelligence or worker logic.
+
+### 7. Price is internal intelligence
+Property price/asking price is retained for matching, market intelligence, lead strategy and internal analytics but is excluded from public marketing context and public publication payloads. The public safety gate rejects price-bearing copy.
+
+### 8. External platforms
 Do not depend on unofficial automation to defeat platform controls. Support owned channels and human-assisted workflows first. Platform-specific adapters are isolated so one platform failure cannot stop the system.
 
 ## Entity model
@@ -58,6 +71,22 @@ Do not depend on unofficial automation to defeat platform controls. Support owne
 - `intake_events`: inbound natural-language events and processing state.
 - `sync_projections`: idempotent projection state for systems such as Sheets.
 - `audit_events`: operational audit trail.
+
+## Control plane
+
+The dashboard is a first-class operational surface with these domains:
+
+- Overview / KPIs / system health.
+- Properties / evidence / provenance / duplicates.
+- Leads / intent / qualification / next action.
+- Discovery / sources / policies / runs / failures.
+- Content / factual drafts / marketing variants / safety.
+- Review / approval queue / blocked work / audit context.
+- Publications / destination state / retries / human-assisted actions.
+- Insights / market graph / funnel / discovery yield / content analytics.
+- Workers & jobs / retries / dead letters / throughput.
+- Settings / public brand / public contacts / channel policies / feature flags.
+- Audit log / security-sensitive operations / configuration changes.
 
 ## Failure model
 
@@ -82,4 +111,5 @@ Every asynchronous operation must have:
 6. Matching and lead scoring.
 7. Content generation/review.
 8. Publication queue and human-assisted adapters.
-9. Monitoring and operational dashboard.
+9. Control-plane dashboard.
+10. Monitoring and operational insights.
