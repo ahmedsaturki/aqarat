@@ -87,6 +87,17 @@ export function buildPipelineDecision({ entity, leadSignal = {}, interestSignal 
   const interest = interestSignal ? classifyInterest({ text: interestSignal.text, property: entity, channel }) : null;
   const interest_profile = interest && personId ? prepareInterestProfile({ personId, signal: interest, property: entity }) : null;
 
+  // Never allow caller-supplied copy containing private seller/source data to
+  // disappear silently merely because the pipeline later regenerates copy.
+  // Treat the supplied draft as a sensitive upstream artifact and reject a
+  // leak before rendering the controlled public version.
+  if (content != null && String(content).trim() !== '') {
+    const upstreamSafety = assertPublicCopySafe(String(content), entity, 'internal');
+    if (!upstreamSafety.ok && upstreamSafety.forbidden_values?.length > 0) {
+      throw new Error('public_marketing_privacy_violation');
+    }
+  }
+
   const marketingContent = buildMarketingContent(entity, channel, {
     ...contentContext,
     upstream_draft_present: content != null && String(content).trim() !== '',
