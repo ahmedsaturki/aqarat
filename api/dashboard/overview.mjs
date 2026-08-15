@@ -39,16 +39,16 @@ export default async function handler(req, res) {
     const [properties, leads, sources, reviews, jobs, publications, discoveryRuns, intakeEvents] = await Promise.all([
       count('properties'),
       count('leads'),
-      count('discovery_sources', '&status=eq.active'),
+      count('discovery_sources', '&enabled=eq.true'),
       count('review_queue', '&status=eq.pending'),
-      count('jobs', '&status=in.(queued,running,retry)'),
+      count('jobs', '&status=in.(queued,running)'),
       count('publication_jobs', '&status=in.(queued,running)'),
       count('discovery_runs', '&status=in.(queued,running)'),
       count('intake_events', '&status=eq.processed'),
     ]);
 
     const recentProperties = await rows('properties', 'select=id,title,city,district,property_type,transaction_type,area_m2,price,currency,confidence,status,updated_at&order=updated_at.desc&limit=25');
-    const recentJobs = await rows('jobs', 'select=id,job_type,status,attempts,run_after,error_message,created_at,updated_at&order=updated_at.desc&limit=20');
+    const recentJobs = await rows('jobs', 'select=id,job_type,status,attempts,available_at,error_message,created_at,updated_at&order=updated_at.desc&limit=20');
 
     return json(res, 200, {
       ok: true,
