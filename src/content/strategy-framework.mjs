@@ -19,8 +19,8 @@ const PRINCIPLES = [
 
 const ANGLE_SIGNALS = [
   ['location', e => Boolean(e?.district || e?.neighborhood || e?.city)],
-  ['value', e => e?.price != null && e?.area_m2 != null],
   ['investment', e => String(e?.property_type || '').toLowerCase() === 'land' && e?.price != null && e?.area_m2 != null],
+  ['value', e => e?.price != null && e?.area_m2 != null],
   ['certainty', e => e?.confidence >= 0.8 && e?.provenance_count > 0],
   ['readiness', e => e?.installments_clear === true],
 ];
@@ -80,6 +80,7 @@ export function buildStrategy(entity = {}, signal = {}, context = {}) {
       'guaranteed outcomes without evidence',
       'deceptive bait-and-switch',
       'exposing private seller or source data',
+      'no private seller/office contact details',
       'discriminatory targeting',
     ],
   };
