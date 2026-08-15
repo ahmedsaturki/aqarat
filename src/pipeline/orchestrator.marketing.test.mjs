@@ -10,7 +10,7 @@ test('marketing content never exposes seller identity and uses configured public
     features: { parcel_number: 662, installments_clear: true },
   };
   const result = buildMarketingContent(entity, 'telegram');
-  assert.equal(result.public_contact_policy, 'configurable_brand_only');
+  assert.equal(result.public_contact_policy, 'lara_brand_only');
   assert.equal(result.public_price_policy, 'never_publish_internal_price');
   assert.equal(result.style, 'sales_marketing');
   assert.doesNotMatch(result.body, /201000925451|مالك سري|مكتب سري/);
