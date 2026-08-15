@@ -1,0 +1,54 @@
+name: verify-production
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'src/runtime/deep-health.mjs'
+      - 'api/healthz/deep.mjs'
+      - 'scripts/verify-release.mjs'
+      - 'test/deep-health.test.mjs'
+      - '.github/workflows/verify-production.yml'
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run tests
+        run: npm test
+
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify public release contract
+        env:
+          AQARAT_RELEASE_URL: https://aqarat-eg.vercel.app
+        run: node scripts/verify-release.mjs
+      - name: Run authenticated deep health check
+        if: ${{ secrets.DASHBOARD_ADMIN_SECRET != '' }}
+        env:
+          AQARAT_RELEASE_URL: https://aqarat-eg.vercel.app
+          AQRAT_HEALTH_SECRET: ${{ secrets.DASHBOARD_ADMIN_SECRET }}
+        run: |
+          set -eu
+          curl --fail-with-body --silent --show-error \
+            --max-time 30 \
+            -H "x-aqarat-health-secret: ${AQRAT_HEALTH_SECRET}" \
+            "${AQARAT_RELEASE_URL}/api/healthz/deep"
+      - name: Report deep health skipped when secret is unavailable
+        if: ${{ secrets.DASHBOARD_ADMIN_SECRET == '' }}
+        run: echo 'DASHBOARD_ADMIN_SECRET is not configured in GitHub production environment; deep external-provider health check skipped.'
