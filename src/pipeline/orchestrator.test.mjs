@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMarketingContent, buildPipelineDecision, classifyInterest } from './orchestrator.mjs';
+import { buildPipelineDecision, classifyInterest, resolveCandidates } from './orchestrator.mjs';
 
 test('resolver groups duplicate property candidates and chooses highest-confidence canonical', () => {
   const result = resolveCandidates([
