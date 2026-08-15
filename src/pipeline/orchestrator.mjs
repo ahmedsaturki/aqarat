@@ -2,6 +2,7 @@ import { scorePropertyMatch, chooseCanonical } from '../intelligence/entity-reso
 import { scoreLead } from '../intelligence/lead-scorer.mjs';
 import { buildContentBrief } from '../content/content-planner.mjs';
 import { buildFactualDraft } from '../content/factual-draft.mjs';
+import { renderSalesCopy, assertPublicCopySafe } from '../content/marketing-policy.mjs';
 import { reviewContent } from '../review/policy.mjs';
 import { buildPublicationJob } from '../publishing/policy.mjs';
 
@@ -40,8 +41,17 @@ export function buildFactualContent(entity, context = {}) {
   return buildFactualDraft(entity, context);
 }
 
-export function gateContent({ body, confidence, provenanceCount, channel }) {
-  return reviewContent({ body, confidence, provenanceCount, channel });
+export function buildMarketingContent(entity, channel = 'telegram', context = {}) {
+  const facts = buildFactualContent(entity, { channel, ...context });
+  const marketingEntity = { ...entity, ...facts.facts };
+  const body = renderSalesCopy(marketingEntity, channel);
+  const safety = assertPublicCopySafe(body, entity, channel);
+  if (!safety.ok) throw new Error('public_marketing_privacy_violation');
+  return { ...facts, body, public_contact_policy: 'lara_brand_only', style: 'sales_marketing' };
+}
+
+export function gateContent({ body, confidence, provenanceCount, channel, entity }) {
+  return reviewContent({ body, confidence, provenanceCount, channel, entity });
 }
 
 export function planPublication({ contentVariantId, channel, destination, review }) {
@@ -55,12 +65,13 @@ export function planPublication({ contentVariantId, channel, destination, review
 
 export function buildPipelineDecision({ entity, leadSignal = {}, content = null, channel = 'telegram', contentContext = {} }) {
   const lead = buildLead(leadSignal);
-  const factualContent = content || buildFactualContent(entity, { channel, ...contentContext });
+  const marketingContent = content || buildMarketingContent(entity, channel, contentContext);
   const review = gateContent({
-    body: factualContent.body,
+    body: marketingContent.body,
     confidence: entity?.confidence,
-    provenanceCount: entity?.provenance_count ?? factualContent.provenance.length,
+    provenanceCount: entity?.provenance_count ?? marketingContent.provenance.length,
     channel,
+    entity,
   });
   const publication = planPublication({
     contentVariantId: entity?.content_variant_id,
@@ -72,7 +83,7 @@ export function buildPipelineDecision({ entity, leadSignal = {}, content = null,
   return {
     lead,
     content_brief: prepareContent(entity, channel),
-    factual_content: factualContent,
+    marketing_content: marketingContent,
     review,
     publication,
     ready_for_publication: publication.status === 'queued',
