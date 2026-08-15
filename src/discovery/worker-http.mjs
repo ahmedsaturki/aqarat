@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { fetchPublicSource } from './http-adapter.mjs';
 import { assertDiscoverySourceAllowed } from './source-policy.mjs';
 import { extractCandidates } from './entity-extractor.mjs';
+import { runDiscoveryTriageAgent } from '../ai/agents.mjs';
 
 const SB_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -24,7 +25,7 @@ async function sb(path, init = {}) {
   });
   const text = await response.text();
   let body = null;
-  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  try { body = text ? JSON.parse(text) : text; } catch { body = text; }
   if (!response.ok) {
     const detail = typeof body === 'string' ? body : JSON.stringify(body);
     const error = new Error(`supabase_http_${response.status}${detail ? `:${detail.slice(0, 500)}` : ''}`);
@@ -52,8 +53,14 @@ async function getSource(id) {
   return rows?.[0] ?? null;
 }
 
-async function upsertEvidence(job, source, fetched) {
+async function upsertEvidence(job, source, fetched, aiTriage) {
   const contentHash = createHash('sha256').update(fetched.content_hash_input || '').digest('hex');
+  const extraction = {
+    ...fetched.extracted_payload,
+    ai_triage: aiTriage?.enabled ? aiTriage.output : null,
+    ai_agent: aiTriage?.agent ?? null,
+    ai_model: aiTriage?.model ?? null,
+  };
   const rows = await sb('/rest/v1/discovery_evidence?on_conflict=run_id,url', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
@@ -66,10 +73,57 @@ async function upsertEvidence(job, source, fetched) {
       captured_at: fetched.fetched_at,
       content_hash: contentHash,
       raw_data: { worker: WORKER, content_type: 'text/html' },
-      extraction: fetched.extracted_payload,
+      extraction,
     }),
   });
   return rows?.[0] ?? null;
+}
+
+function mergeAiCandidates(deterministicCandidates, aiTriage, evidence) {
+  if (!aiTriage?.enabled || !aiTriage.output) return deterministicCandidates;
+  if (aiTriage.output.is_listing === false && Number(aiTriage.output.confidence || 0) >= 0.75) return [];
+
+  const aiCandidates = Array.isArray(aiTriage.output.candidates) ? aiTriage.output.candidates : [];
+  const sourceUrl = evidence?.canonical_url || evidence?.source_url || null;
+  const mapped = aiCandidates
+    .filter((candidate) => candidate && Array.isArray(candidate.evidence_spans) && candidate.evidence_spans.length)
+    .map((candidate) => ({
+      entity_type: 'property',
+      name: candidate.title ?? null,
+      phone: null,
+      address: candidate.district ?? null,
+      city: candidate.city ?? null,
+      source_url: sourceUrl,
+      confidence: Math.min(0.95, Math.max(0, Number(aiTriage.output.confidence || 0))),
+      attributes: {
+        property_type: candidate.property_type ?? null,
+        transaction_type: candidate.transaction_type ?? null,
+        area_m2: candidate.area_m2 ?? null,
+        price: candidate.price ?? null,
+        currency: candidate.currency ?? 'EGP',
+        parcel_number: candidate.parcel_number ?? null,
+        bedrooms: candidate.bedrooms ?? null,
+        bathrooms: candidate.bathrooms ?? null,
+        features: candidate.features ?? [],
+        ai_evidence_spans: candidate.evidence_spans,
+      },
+    }));
+
+  if (!mapped.length) return deterministicCandidates;
+  if (!deterministicCandidates.length) return mapped;
+
+  return deterministicCandidates.map((candidate) => {
+    const supplement = mapped.find((item) =>
+      (item.attributes.parcel_number && item.attributes.parcel_number === candidate.attributes?.parcel_number) ||
+      (item.attributes.area_m2 && item.attributes.area_m2 === candidate.attributes?.area_m2 && item.city === candidate.city)
+    );
+    if (!supplement) return candidate;
+    return {
+      ...candidate,
+      confidence: Math.max(Number(candidate.confidence || 0), Number(supplement.confidence || 0)),
+      attributes: { ...candidate.attributes, ...supplement.attributes },
+    };
+  });
 }
 
 async function insertEntities(job, evidence, candidates) {
@@ -119,18 +173,27 @@ async function main() {
     const fetched = await fetchPublicSource(target, {
       timeoutMs: Math.min(Number(source.config?.timeout_ms || 15000), 30000),
     });
-    const evidence = await upsertEvidence(job, source, fetched);
-    const candidates = extractCandidates(evidence ? { ...fetched, ...evidence } : fetched);
+
+    const initialEvidence = { ...fetched, extracted_payload: fetched.extracted_payload };
+    const aiTriage = await runDiscoveryTriageAgent(initialEvidence);
+    const evidence = await upsertEvidence(job, source, fetched, aiTriage);
+    const deterministicCandidates = extractCandidates(evidence ? { ...fetched, ...evidence } : fetched);
+    const candidates = mergeAiCandidates(deterministicCandidates, aiTriage, evidence);
     const entities = await insertEntities(job, evidence, candidates);
 
     await finish(job, {
       status: 'succeeded',
       last_error: null,
-      result: { evidence_id: evidence?.id ?? null, entities_inserted: entities },
+      result: {
+        evidence_id: evidence?.id ?? null,
+        entities_inserted: entities,
+        ai_enabled: Boolean(aiTriage?.enabled),
+        ai_agent: aiTriage?.agent ?? null,
+      },
       finished_at: new Date().toISOString(),
     });
 
-    console.log(JSON.stringify({ ok: true, claimed: true, job_id: job.id, evidence_id: evidence?.id ?? null, entities }));
+    console.log(JSON.stringify({ ok: true, claimed: true, job_id: job.id, evidence_id: evidence?.id ?? null, entities, ai_enabled: Boolean(aiTriage?.enabled) }));
   } catch (error) {
     const attempts = Number(job.attempts || 1);
     const retryable = attempts < Number(job.max_attempts || 5) && !String(error.message).startsWith('discovery_source_policy_blocked');
