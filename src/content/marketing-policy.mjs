@@ -84,6 +84,8 @@ export function assertPublicCopySafe(copy, entity, channel, options = {}) {
   const text = String(copy ?? '');
   const normalizedText = text.replace(/\s+/g, ' ').trim();
   const forbiddenValues = [];
+  const brand = getPublicBrandConfig();
+  const publicDigits = [brand.phone, brand.whatsapp].filter(Boolean).map((v) => String(v).replace(/\D/g, '')).filter((v) => v.length >= 8);
   const candidates = [
     entity?.phone, entity?.primary_phone, entity?.phones, entity?.contact_name, entity?.owner_name,
     entity?.seller_name, entity?.office_name, entity?.broker_name, entity?.email, entity?.source_url,
@@ -94,20 +96,20 @@ export function assertPublicCopySafe(copy, entity, channel, options = {}) {
 
   for (const value of candidates) {
     const digits = value.replace(/\D/g, '');
+    const isConfiguredContact = allowConfiguredContact && digits.length >= 8 && publicDigits.some((publicNumber) => digits === publicNumber);
+    if (isConfiguredContact) continue;
     if (digits.length >= 8 && normalizedText.replace(/\D/g, '').includes(digits)) forbiddenValues.push(value);
     if (value.length >= 4 && normalizedText.includes(value)) forbiddenValues.push(value);
   }
 
   if (!checkPrice) {
     for (const value of [entity?.price, entity?.asking_price, entity?.internal_price, entity?.net_price, entity?.minimum_price].filter((v) => v != null).map(String)) {
-      forbiddenValues.splice(forbiddenValues.indexOf(value), forbiddenValues.indexOf(value) >= 0 ? 1 : 0);
+      const index = forbiddenValues.indexOf(value);
+      if (index >= 0) forbiddenValues.splice(index, 1);
     }
   }
 
   const phoneLike = normalizedText.match(/(?:\+?20|0)?1[0125]\d{8}/g) ?? [];
-  const brand = getPublicBrandConfig();
-  const publicNumbers = [brand.phone, brand.whatsapp].filter(Boolean).map((v) => String(v));
-  const publicDigits = publicNumbers.map((v) => v.replace(/\D/g, '')).filter((v) => v.length >= 8);
   for (const number of phoneLike) {
     const digits = number.replace(/\D/g, '');
     if (!allowConfiguredContact || !publicDigits.some((publicNumber) => digits.includes(publicNumber) || publicNumber.includes(digits))) {
