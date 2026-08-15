@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -79,14 +78,7 @@ async function commit(eventId) {
 
 function authorized(headers = {}) {
   if (!TELEGRAM_WEBHOOK_SECRET) return true;
-  return headers['x-telegram-bot-api-secret-token'] === normalizedTelegramWebhookSecret();
-}
-
-function normalizedTelegramWebhookSecret() {
-  if (!TELEGRAM_WEBHOOK_SECRET) return '';
-  // Telegram's secret_token accepts only ASCII letters, digits, '_' and '-'.
-  // Hashing preserves a stable server-side secret while guaranteeing a valid token.
-  return createHash('sha256').update(String(TELEGRAM_WEBHOOK_SECRET)).digest('base64url');
+  return headers['x-telegram-bot-api-secret-token'] === TELEGRAM_WEBHOOK_SECRET;
 }
 
 async function telegramApi(method, body) {
@@ -163,7 +155,7 @@ export async function getTelegramStatus({ autoRegister = true, webhookUrl } = {}
   if (autoRegister && webhookUrl && webhook?.result?.url !== webhookUrl) {
     await telegramApi('setWebhook', {
       url: webhookUrl,
-      ...(TELEGRAM_WEBHOOK_SECRET ? { secret_token: normalizedTelegramWebhookSecret() } : {}),
+      ...(TELEGRAM_WEBHOOK_SECRET ? { secret_token: TELEGRAM_WEBHOOK_SECRET } : {}),
       allowed_updates: ['message', 'edited_message', 'channel_post'],
       drop_pending_updates: false,
     });
