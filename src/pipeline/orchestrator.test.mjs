@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCandidates, buildPipelineDecision } from './orchestrator.mjs';
+import { resolveCandidates, buildPipelineDecision, classifyInterest } from './orchestrator.mjs';
 
 test('resolver groups duplicate property candidates and chooses highest-confidence canonical', () => {
   const groups = resolveCandidates([
@@ -61,4 +61,13 @@ test('pipeline rejects manually supplied content that leaks seller phone', () =>
     }),
     /public_marketing_privacy_violation/,
   );
+});
+
+test('pipeline derives buyer and seller intent only from explicit evidence', () => {
+  const buyer = classifyInterest({ text: 'بدور على أرض في مدينة السادات', property: { city: 'مدينة السادات', property_type: 'land' }, channel: 'telegram' });
+  assert.equal(buyer.intent, 'buyer');
+  assert.ok(buyer.score > 0);
+
+  const seller = classifyInterest({ text: 'أرض للبيع في المنطقة 21', property: { city: 'مدينة السادات', property_type: 'land' }, channel: 'telegram' });
+  assert.equal(seller.intent, 'seller');
 });
