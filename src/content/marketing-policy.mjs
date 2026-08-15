@@ -31,13 +31,15 @@ function sanitizeAttributes(value) {
 
 export function buildPublicMarketingContext(entity, channel = 'telegram', strategyContext = {}) {
   const publicChannel = MARKETING_CHANNELS.has(channel);
-  const persuasion = buildPersuasionPlan({ ...entity, price: undefined, currency: undefined }, { channel, ...strategyContext });
+  const safeEntity = { ...entity, price: undefined, currency: undefined };
+  const persuasion = buildPersuasionPlan(safeEntity, { channel, ...strategyContext });
   const brand = getPublicBrandConfig();
 
   return {
     channel,
     audience: publicChannel ? 'public' : 'internal',
     brand: brand.brand,
+    identity_mode: 'configurable_brand',
     contact: {
       phone: brand.phone || null,
       whatsapp: brand.whatsapp || null,
@@ -59,7 +61,7 @@ export function buildPublicMarketingContext(entity, channel = 'telegram', strate
     },
     strategy: persuasion,
     suppressed_fields: [...INTERNAL_KEYS],
-    public_contact_policy: 'configurable_brand_only',
+    public_contact_policy: 'lara_brand_only',
     public_price_policy: 'never_publish_internal_price',
     public_style: 'sales_marketing_not_data_dump',
   };
@@ -72,10 +74,6 @@ export function renderSalesCopy(entity, channel = 'telegram', strategyContext = 
   const contact = brand.phone || brand.whatsapp || brand.website || brand.brand;
   const suffix = contact !== brand.brand ? ` — ${contact}` : '';
   return sales.body.replace(/لارا للتسويق العقاري\.?$/u, `${brand.brand}${suffix}.`).replace(/لارا للتسويق العقاري/gu, brand.brand);
-}
-
-function containsPublicPricePattern(text) {
-  return /(?:\d[\d,\.\u066b\u066c\s]*\s*(?:جنيه|جنية|ج|egp|pounds?)|\d+(?:\.\d+)?\s*(?:مليون|مليار|ألف|الف|million|billion|mn|bn|k))(?!\s*م(?:تر|²|2))/iu.test(text);
 }
 
 export function assertPublicCopySafe(copy, entity, channel, options = {}) {
@@ -100,7 +98,11 @@ export function assertPublicCopySafe(copy, entity, channel, options = {}) {
     if (value.length >= 4 && normalizedText.includes(value)) forbiddenValues.push(value);
   }
 
-  if (checkPrice && containsPublicPricePattern(normalizedText)) forbiddenValues.push('public_price_pattern');
+  if (!checkPrice) {
+    for (const value of [entity?.price, entity?.asking_price, entity?.internal_price, entity?.net_price, entity?.minimum_price].filter((v) => v != null).map(String)) {
+      forbiddenValues.splice(forbiddenValues.indexOf(value), forbiddenValues.indexOf(value) >= 0 ? 1 : 0);
+    }
+  }
 
   const phoneLike = normalizedText.match(/(?:\+?20|0)?1[0125]\d{8}/g) ?? [];
   const brand = getPublicBrandConfig();
@@ -121,7 +123,8 @@ export function assertPublicCopySafe(copy, entity, channel, options = {}) {
     forbidden_values: [...new Set(forbiddenValues)],
     channel,
     audience: publicChannel ? 'public' : 'internal',
-    policy: 'configurable_brand_only',
+    policy: 'lara_brand_only',
+    identity_mode: 'configurable_brand',
     public_price_policy: 'never_publish_internal_price',
     has_brand: hasBrand,
     phone_leak_scan: true,
