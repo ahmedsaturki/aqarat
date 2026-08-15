@@ -74,6 +74,10 @@ export function renderSalesCopy(entity, channel = 'telegram', strategyContext = 
   return sales.body.replace(/لارا للتسويق العقاري\.?$/u, `${brand.brand}${suffix}.`).replace(/لارا للتسويق العقاري/gu, brand.brand);
 }
 
+function containsPublicPricePattern(text) {
+  return /(?:\d[\d,\.\u066b\u066c\s]*\s*(?:جنيه|جنية|ج|egp|pounds?)|\d+(?:\.\d+)?\s*(?:مليون|مليار|ألف|الف|million|billion|mn|bn|k))(?!\s*متر)/iu.test(text);
+}
+
 export function assertPublicCopySafe(copy, entity, channel) {
   const text = String(copy ?? '');
   const normalizedText = text.replace(/\s+/g, ' ').trim();
@@ -83,6 +87,7 @@ export function assertPublicCopySafe(copy, entity, channel) {
     entity?.seller_name, entity?.office_name, entity?.broker_name, entity?.email, entity?.source_url,
     entity?.source_event_id, entity?.source_record_id, entity?.raw_text, entity?.sender_id, entity?.chat_id,
     entity?.person_id, entity?.contact_id, entity?.property_id, entity?.lead_id,
+    entity?.price, entity?.asking_price, entity?.internal_price, entity?.net_price, entity?.minimum_price,
   ].flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean).map(String);
 
   for (const value of candidates) {
@@ -91,13 +96,15 @@ export function assertPublicCopySafe(copy, entity, channel) {
     if (value.length >= 4 && normalizedText.includes(value)) forbiddenValues.push(value);
   }
 
+  if (containsPublicPricePattern(normalizedText)) forbiddenValues.push('public_price_pattern');
+
   const phoneLike = normalizedText.match(/(?:\+?20|0)?1[0125]\d{8}/g) ?? [];
   const brand = getPublicBrandConfig();
-  const laraNumbers = [brand.phone, brand.whatsapp].filter(Boolean).map((v) => String(v));
-  const laraDigits = laraNumbers.map((v) => v.replace(/\D/g, '')).filter((v) => v.length >= 8);
+  const publicNumbers = [brand.phone, brand.whatsapp].filter(Boolean).map((v) => String(v));
+  const publicDigits = publicNumbers.map((v) => v.replace(/\D/g, '')).filter((v) => v.length >= 8);
   for (const number of phoneLike) {
     const digits = number.replace(/\D/g, '');
-    if (digits.length >= 8 && !laraDigits.some((lara) => digits.includes(lara) || lara.includes(digits))) {
+    if (digits.length >= 8 && !publicDigits.some((publicNumber) => digits.includes(publicNumber) || publicNumber.includes(digits))) {
       forbiddenValues.push(number);
     }
   }
