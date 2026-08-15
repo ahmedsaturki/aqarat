@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aqarat OS — Operations Dashboard</title>
+  <link rel="stylesheet" href="/dashboard/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">A</div>
+        <div><strong>Aqarat OS</strong><small>Real Estate Intelligence</small></div>
+      </div>
+      <nav>
+        <a class="active" href="/dashboard/">لوحة التحكم</a>
+        <a href="#properties">العقارات</a>
+        <a href="#leads">العملاء المحتملون</a>
+        <a href="#discovery">الاكتشاف والمصادر</a>
+        <a href="#content">المحتوى والإعلانات</a>
+        <a href="#review">المراجعة والموافقات</a>
+        <a href="#analytics">Insights & Analytics</a>
+        <a href="#jobs">Workers & Jobs</a>
+        <a href="#settings">الهوية والإعدادات</a>
+        <a href="#audit">Audit Log</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>مركز تشغيل Aqarat</h1>
+          <p>اكتشاف → تحليل → مطابقة → محتوى → مراجعة → نشر</p>
+        </div>
+        <div class="status-pill" id="health">جاري الفحص…</div>
+      </header>
+
+      <section class="grid metrics">
+        <article class="card metric"><span>العقارات</span><strong>—</strong><small>Canonical entities</small></article>
+        <article class="card metric"><span>Leads</span><strong>—</strong><small>Qualified intents</small></article>
+        <article class="card metric"><span>مصادر نشطة</span><strong>—</strong><small>Discovery sources</small></article>
+        <article class="card metric"><span>محتوى بانتظار المراجعة</span><strong>—</strong><small>Human approval queue</small></article>
+      </section>
+
+      <section class="grid two">
+        <article class="card">
+          <div class="card-head"><h2>الهوية العامة</h2><span class="tag">Public Brand</span></div>
+          <div id="brand" class="brand-preview">جاري التحميل…</div>
+          <p class="muted">الاسم ورقم التواصل العام قابلان للتبديل مركزيًا بدون تعديل منطق الـCore.</p>
+        </article>
+        <article class="card">
+          <div class="card-head"><h2>Public Safety</h2><span class="tag safe">ENFORCED</span></div>
+          <ul class="checks">
+            <li>سعر العقار: <b>داخلي فقط</b></li>
+            <li>بيانات المالك والمصدر: <b>محجوبة</b></li>
+            <li>النشر العام: <b>بهوية الشركة وأرقامها فقط</b></li>
+            <li>النشر الخارجي: <b>Human Review</b></li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="card roadmap">
+        <div class="card-head"><h2>Control Plane</h2><span class="tag">Phase 1</span></div>
+        <div class="roadmap-grid">
+          <div><b>01</b><span>Overview</span><small>KPIs + health + queues</small></div>
+          <div><b>02</b><span>Properties</span><small>entity + evidence + provenance</small></div>
+          <div><b>03</b><span>Discovery</span><small>sources + runs + policies</small></div>
+          <div><b>04</b><span>Content</span><small>drafts + review + publication</small></div>
+          <div><b>05</b><span>Insights</span><small>market + funnel + content</small></div>
+          <div><b>06</b><span>Settings</span><small>brand + contacts + policies</small></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    async function boot() {
+      const health = document.getElementById('health');
+      const brand = document.getElementById('brand');
+      try {
+        const response = await fetch('/api/public-config', { headers: { accept: 'application/json' } });
+        const data = await response.json();
+        brand.innerHTML = `<strong>${data.brand}</strong><span>Phone: ${data.phone}</span><span>WhatsApp: ${data.whatsapp}</span>`;
+        health.textContent = 'Core config OK';
+        health.classList.add('ok');
+      } catch {
+        health.textContent = 'Config unavailable';
+        health.classList.add('bad');
+        brand.textContent = 'تعذر تحميل الهوية العامة';
+      }
+    }
+    boot();
+  </script>
+</body>
+</html>
