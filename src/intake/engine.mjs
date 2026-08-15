@@ -5,7 +5,7 @@ function normalizedText(v){return clean(v).toLowerCase().replace(/[إأآ]/g,'ا
 function normalizeDigits(v){return String(v??'').replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))}
 function firstMatch(t,p){for(const r of(Array.isArray(p)?p:[p])){const m=t.match(r);if(m)return m}return null}
 function parseNumber(v){if(v==null)return null;const n=Number(normalizeDigits(v).replace(/[,،\s]/g,''));return Number.isFinite(n)?n:null}
-function parseArea(text){const t=normalizeDigits(text);const m=firstMatch(t,[/(?:مساح(?:ة|ه)|مساحه)\s*(?:=|:|-)?\s*(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)/i,/(\d+(?:\.\d+)?)\s*(?:م2|م²|متر(?:\s*مربع)?|sqm|m2)/i,/(?:مساح(?:ة|ه))\s*(\d+(?:\.\d+)?)\s*(?:متر|m)/i]);return m?parseNumber(m[1]):null}
+function parseArea(text){const t=normalizeDigits(text);const direct=t.match(/(\d+(?:\.\d+)?)\s*(?:متر\s*(?:مربع)?|م²|م2|sqm|m2)\b?/i);if(direct)return parseNumber(direct[1]);const labeled=t.match(/(?:مساح(?:ة|ه)|مساحة)\s*(?:=|:|-)?\s*(\d+(?:\.\d+)?)/i);return labeled?parseNumber(labeled[1]):null}
 function parseParcelNumber(text){const t=normalizeDigits(text);const m=firstMatch(t,[/(?:رقم\s*)?(?:القطعة|قطعه)\s*(?:رقم\s*)?(\d+)/i,/رقم\s*(\d+)\s*(?:مساحة|متر)/i]);return m?Number(m[1]):null}
 function parseInstallmentsClear(text){return/(خالصة\s*الاقساط|خالصه\s*الاقساط|خلصت\s*الاقساط|مسدد(?:ة|ه)\s*الاقساط)/i.test(normalizedText(text))?true:null}
 function parseBedrooms(text){const m=firstMatch(normalizeDigits(text),[/(\d+)\s*(?:غرف|غرفة|bedrooms?|beds?)/i,/(?:غرف|غرفة)\s*(?:عدد\s*)?(\d+)/i]);return m?Number(m[1]):null}
