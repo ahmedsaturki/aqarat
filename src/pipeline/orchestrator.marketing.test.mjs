@@ -29,5 +29,6 @@ test('pipeline keeps external channels human-assisted', () => {
   assert.equal(decision.publication.requires_human, true);
   assert.equal(decision.publication.status, 'blocked_review');
   assert.equal(decision.marketing_content.public_contact_policy, 'lara_brand_only');
-  assert.match(decision.marketing_content.body, /01000925451/);
+  assert.match(decision.marketing_content.body, /لارا للتسويق العقاري/);
 });
+
