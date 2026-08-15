@@ -9,84 +9,71 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand-block">
-        <div class="brand-mark">A</div>
-        <div><strong>Aqarat OS</strong><small>Real Estate Intelligence</small></div>
-      </div>
+      <div class="brand-block"><div class="brand-mark">A</div><div><strong>Aqarat OS</strong><small>Real Estate Intelligence</small></div></div>
       <nav>
-        <a class="active" href="/dashboard/">لوحة التحكم</a>
-        <a href="#properties">العقارات</a>
-        <a href="#leads">العملاء المحتملون</a>
-        <a href="#discovery">الاكتشاف والمصادر</a>
-        <a href="#content">المحتوى والإعلانات</a>
-        <a href="#review">المراجعة والموافقات</a>
-        <a href="#analytics">Insights & Analytics</a>
-        <a href="#jobs">Workers & Jobs</a>
-        <a href="#settings">الهوية والإعدادات</a>
-        <a href="#audit">Audit Log</a>
+        <a class="active" href="/dashboard/">لوحة التحكم</a><a href="#properties">العقارات</a><a href="#leads">العملاء المحتملون</a><a href="#discovery">الاكتشاف والمصادر</a><a href="#content">المحتوى والإعلانات</a><a href="#review">المراجعة والموافقات</a><a href="#analytics">Insights & Analytics</a><a href="#jobs">Workers & Jobs</a><a href="#settings">الهوية والإعدادات</a><a href="#audit">Audit Log</a>
       </nav>
+      <div class="sidebar-foot">Private operator surface</div>
     </aside>
 
     <main class="main">
-      <header class="topbar">
-        <div>
-          <h1>مركز تشغيل Aqarat</h1>
-          <p>اكتشاف → تحليل → مطابقة → محتوى → مراجعة → نشر</p>
-        </div>
-        <div class="status-pill" id="health">جاري الفحص…</div>
-      </header>
+      <header class="topbar"><div><h1>مركز تشغيل Aqarat</h1><p>اكتشاف → تحليل → مطابقة → محتوى → مراجعة → نشر</p></div><div class="status-pill" id="health">جاري الفحص…</div></header>
 
-      <section class="grid metrics">
-        <article class="card metric"><span>العقارات</span><strong>—</strong><small>Canonical entities</small></article>
-        <article class="card metric"><span>Leads</span><strong>—</strong><small>Qualified intents</small></article>
-        <article class="card metric"><span>مصادر نشطة</span><strong>—</strong><small>Discovery sources</small></article>
-        <article class="card metric"><span>محتوى بانتظار المراجعة</span><strong>—</strong><small>Human approval queue</small></article>
-      </section>
+      <div id="login" class="auth-card">
+        <h2>تسجيل دخول المشغّل</h2><p>هذه لوحة داخلية وتحتاج سر المشغّل المخزن في Vercel.</p>
+        <form id="loginForm"><input id="password" type="password" autocomplete="current-password" placeholder="Dashboard Admin Secret" required><button type="submit">دخول</button><div id="loginError" class="error"></div></form>
+      </div>
 
-      <section class="grid two">
-        <article class="card">
-          <div class="card-head"><h2>الهوية العامة</h2><span class="tag">Public Brand</span></div>
-          <div id="brand" class="brand-preview">جاري التحميل…</div>
-          <p class="muted">الاسم ورقم التواصل العام قابلان للتبديل مركزيًا بدون تعديل منطق الـCore.</p>
-        </article>
-        <article class="card">
-          <div class="card-head"><h2>Public Safety</h2><span class="tag safe">ENFORCED</span></div>
-          <ul class="checks">
-            <li>سعر العقار: <b>داخلي فقط</b></li>
-            <li>بيانات المالك والمصدر: <b>محجوبة</b></li>
-            <li>النشر العام: <b>بهوية الشركة وأرقامها فقط</b></li>
-            <li>النشر الخارجي: <b>Human Review</b></li>
-          </ul>
-        </article>
-      </section>
-
-      <section class="card roadmap">
-        <div class="card-head"><h2>Control Plane</h2><span class="tag">Phase 1</span></div>
-        <div class="roadmap-grid">
-          <div><b>01</b><span>Overview</span><small>KPIs + health + queues</small></div>
-          <div><b>02</b><span>Properties</span><small>entity + evidence + provenance</small></div>
-          <div><b>03</b><span>Discovery</span><small>sources + runs + policies</small></div>
-          <div><b>04</b><span>Content</span><small>drafts + review + publication</small></div>
-          <div><b>05</b><span>Insights</span><small>market + funnel + content</small></div>
-          <div><b>06</b><span>Settings</span><small>brand + contacts + policies</small></div>
-        </div>
+      <section id="dashboard" hidden>
+        <section class="grid metrics" id="metrics"></section>
+        <section class="grid two">
+          <article class="card"><div class="card-head"><h2>الهوية العامة</h2><span class="tag">Public Brand</span></div><div id="brand" class="brand-preview">جاري التحميل…</div><p class="muted">الاسم ورقم التواصل العام قابلان للتبديل مركزيًا بدون تعديل منطق الـCore.</p></article>
+          <article class="card"><div class="card-head"><h2>Public Safety</h2><span class="tag safe">ENFORCED</span></div><ul class="checks"><li>سعر العقار: <b>داخلي فقط</b></li><li>بيانات المالك والمصدر: <b>محجوبة</b></li><li>النشر العام: <b>بهويّة الشركة وأرقامها فقط</b></li><li>النشر الخارجي: <b>Human Review</b></li></ul></article>
+        </section>
+        <section class="card"><div class="card-head"><h2>آخر العقارات</h2><span class="tag">Live Supabase</span></div><div class="table-wrap"><table><thead><tr><th>العنوان</th><th>الموقع</th><th>النوع</th><th>المساحة</th><th>السعر الداخلي</th><th>الثقة</th><th>الحالة</th></tr></thead><tbody id="propertiesBody"></tbody></table></div></section>
+        <section class="card"><div class="card-head"><h2>Workers & Jobs</h2><span class="tag">Live Queue</span></div><div class="table-wrap"><table><thead><tr><th>Job</th><th>النوع</th><th>الحالة</th><th>المحاولات</th><th>التاريخ</th></tr></thead><tbody id="jobsBody"></tbody></table></div></section>
       </section>
     </main>
   </div>
   <script>
+    const login = document.getElementById('login');
+    const dashboard = document.getElementById('dashboard');
+    const health = document.getElementById('health');
+    const metrics = document.getElementById('metrics');
+    const brand = document.getElementById('brand');
+
+    const metricDefs = [['properties','العقارات','Canonical entities'],['leads','Leads','Qualified intents'],['active_sources','مصادر نشطة','Discovery sources'],['pending_reviews','محتوى بانتظار المراجعة','Human approval queue'],['active_jobs','Jobs نشطة','Queued / running / retry'],['active_publications','عمليات نشر','Owned/external publication'],['active_discovery_runs','Discovery Runs','Queued / running'],['processed_intakes','Intake processed','Committed events']];
+
+    async function loadOverview() {
+      const response = await fetch('/api/dashboard/overview', { headers: { accept: 'application/json' } });
+      if (response.status === 401) throw new Error('AUTH_REQUIRED');
+      if (!response.ok) throw new Error('OVERVIEW_FAILED');
+      return response.json();
+    }
+
+    function render(data, publicConfig) {
+      metrics.innerHTML = metricDefs.map(([key,label,sub]) => `<article class="card metric"><span>${label}</span><strong>${Number(data.metrics[key] || 0).toLocaleString('ar-EG')}</strong><small>${sub}</small></article>`).join('');
+      brand.innerHTML = `<strong>${publicConfig.brand}</strong><span>Phone: ${publicConfig.phone || '—'}</span><span>WhatsApp: ${publicConfig.whatsapp || '—'}</span><span>Price policy: never public</span>`;
+      document.getElementById('propertiesBody').innerHTML = (data.recent_properties || []).map((p) => `<tr><td>${p.title || '—'}</td><td>${[p.city,p.district].filter(Boolean).join(' · ') || '—'}</td><td>${p.property_type || '—'} / ${p.transaction_type || '—'}</td><td>${p.area_m2 ?? '—'} م²</td><td>${p.price != null ? `${Number(p.price).toLocaleString('ar-EG')} ${p.currency || 'EGP'}` : '—'}</td><td>${p.confidence != null ? `${Math.round(Number(p.confidence)*100)}%` : '—'}</td><td>${p.status || '—'}</td></tr>`).join('');
+      document.getElementById('jobsBody').innerHTML = (data.recent_jobs || []).map((j) => `<tr><td>${j.id || '—'}</td><td>${j.job_type || '—'}</td><td><span class="tag">${j.status || '—'}</span></td><td>${j.attempts ?? 0}</td><td>${j.updated_at ? new Date(j.updated_at).toLocaleString('ar-EG') : '—'}</td></tr>`).join('');
+      login.hidden = true; dashboard.hidden = false; health.textContent = 'Supabase Live'; health.classList.add('ok');
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); document.getElementById('loginError').textContent = '';
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/dashboard/login', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({password}) });
+      if (!res.ok) { document.getElementById('loginError').textContent = 'بيانات الدخول غير صحيحة أو السر غير مضبوط.'; return; }
+      await boot();
+    });
+
     async function boot() {
-      const health = document.getElementById('health');
-      const brand = document.getElementById('brand');
       try {
-        const response = await fetch('/api/public-config', { headers: { accept: 'application/json' } });
-        const data = await response.json();
-        brand.innerHTML = `<strong>${data.brand}</strong><span>Phone: ${data.phone}</span><span>WhatsApp: ${data.whatsapp}</span>`;
-        health.textContent = 'Core config OK';
-        health.classList.add('ok');
-      } catch {
-        health.textContent = 'Config unavailable';
-        health.classList.add('bad');
-        brand.textContent = 'تعذر تحميل الهوية العامة';
+        const [data, config] = await Promise.all([loadOverview(), fetch('/api/public-config').then(r=>r.json())]);
+        render(data, config);
+      } catch (error) {
+        if (error.message === 'AUTH_REQUIRED') { login.hidden = false; dashboard.hidden = true; health.textContent = 'Operator login required'; return; }
+        health.textContent = 'Dashboard unavailable'; health.classList.add('bad');
       }
     }
     boot();
