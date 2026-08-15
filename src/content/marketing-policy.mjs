@@ -1,4 +1,5 @@
 import { renderSalesFramework, buildPersuasionPlan } from './sales-strategy.mjs';
+import { getPublicBrandConfig } from '../config/public-brand.mjs';
 
 const MARKETING_CHANNELS = new Set(['telegram', 'website', 'facebook', 'whatsapp', 'linkedin', 'classified']);
 const INTERNAL_KEYS = new Set([
@@ -6,14 +7,8 @@ const INTERNAL_KEYS = new Set([
   'contact_name', 'phone', 'phones', 'primary_phone', 'email', 'emails', 'sender_id', 'chat_id',
   'source_event_id', 'external_event_id', 'source_url', 'source_record_id', 'raw_text', 'person_id',
   'contact_id', 'property_id', 'lead_id', 'lead_score', 'entity_match_score', 'reviewer_id',
+  'price', 'currency', 'asking_price', 'internal_price', 'net_price', 'minimum_price', 'seller_price',
 ]);
-
-const LARA = {
-  brand: 'لارا للتسويق العقاري',
-  phone: process.env.PUBLIC_MARKETING_PHONE ?? '',
-  whatsapp: process.env.PUBLIC_MARKETING_WHATSAPP ?? '',
-  website: process.env.PUBLIC_MARKETING_WEBSITE ?? '',
-};
 
 function normalizeKey(key) {
   return String(key ?? '').trim().toLowerCase().replace(/\s+/g, '_');
@@ -37,15 +32,16 @@ function sanitizeAttributes(value) {
 export function buildPublicMarketingContext(entity, channel = 'telegram', strategyContext = {}) {
   const publicChannel = MARKETING_CHANNELS.has(channel);
   const persuasion = buildPersuasionPlan(entity, { channel, ...strategyContext });
+  const brand = getPublicBrandConfig();
 
   return {
     channel,
     audience: publicChannel ? 'public' : 'internal',
-    brand: LARA.brand,
+    brand: brand.brand,
     contact: {
-      phone: LARA.phone || null,
-      whatsapp: LARA.whatsapp || null,
-      website: LARA.website || null,
+      phone: brand.phone || null,
+      whatsapp: brand.whatsapp || null,
+      website: brand.website || null,
     },
     property: {
       city: entity?.city ?? null,
@@ -58,14 +54,13 @@ export function buildPublicMarketingContext(entity, channel = 'telegram', strate
       bathrooms: entity?.bathrooms ?? null,
       floor: entity?.floor ?? null,
       finishing: entity?.finishing ?? null,
-      price: entity?.price ?? null,
-      currency: entity?.currency ?? 'EGP',
       installments_clear: entity?.installments_clear === true ? true : null,
       features: sanitizeAttributes(entity?.features ?? entity?.attributes),
     },
     strategy: persuasion,
     suppressed_fields: [...INTERNAL_KEYS],
-    public_contact_policy: 'lara_brand_only',
+    public_contact_policy: 'configurable_brand_only',
+    public_price_policy: 'never_publish_internal_price',
     public_style: 'sales_marketing_not_data_dump',
   };
 }
@@ -73,9 +68,10 @@ export function buildPublicMarketingContext(entity, channel = 'telegram', strate
 export function renderSalesCopy(entity, channel = 'telegram', strategyContext = {}) {
   const ctx = buildPublicMarketingContext(entity, channel, strategyContext);
   const sales = renderSalesFramework(ctx.property, { channel, ...strategyContext });
-  const contact = ctx.contact.phone || ctx.contact.whatsapp || ctx.contact.website || ctx.brand;
-  const body = sales.body.replace(/لارا للتسويق العقاري\.?$/u, `لارا للتسويق العقاري${contact !== ctx.brand ? ` — ${contact}` : ''}.`);
-  return body;
+  const brand = getPublicBrandConfig();
+  const contact = brand.phone || brand.whatsapp || brand.website || brand.brand;
+  const suffix = contact !== brand.brand ? ` — ${contact}` : '';
+  return sales.body.replace(/لارا للتسويق العقاري\.?$/u, `${brand.brand}${suffix}.`).replace(/لارا للتسويق العقاري/gu, brand.brand);
 }
 
 export function assertPublicCopySafe(copy, entity, channel) {
@@ -95,11 +91,9 @@ export function assertPublicCopySafe(copy, entity, channel) {
     if (value.length >= 4 && normalizedText.includes(value)) forbiddenValues.push(value);
   }
 
-  // A public copy may contain only Lara's configured contact details.
-  // Detect standalone phone-like sequences as an additional defense against
-  // accidental leakage from an unrelated internal contact not present on the entity object.
   const phoneLike = normalizedText.match(/(?:\+?20|0)?1[0125]\d{8}/g) ?? [];
-  const laraNumbers = [LARA.phone, LARA.whatsapp].filter(Boolean).map((v) => String(v));
+  const brand = getPublicBrandConfig();
+  const laraNumbers = [brand.phone, brand.whatsapp].filter(Boolean).map((v) => String(v));
   const laraDigits = laraNumbers.map((v) => v.replace(/\D/g, '')).filter((v) => v.length >= 8);
   for (const number of phoneLike) {
     const digits = number.replace(/\D/g, '');
@@ -108,7 +102,7 @@ export function assertPublicCopySafe(copy, entity, channel) {
     }
   }
 
-  const hasBrand = normalizedText.includes(LARA.brand);
+  const hasBrand = normalizedText.includes(brand.brand);
   const publicChannel = MARKETING_CHANNELS.has(String(channel).toLowerCase());
   const ok = forbiddenValues.length === 0 && normalizedText.length > 0 && (!publicChannel || hasBrand);
   return {
@@ -116,8 +110,9 @@ export function assertPublicCopySafe(copy, entity, channel) {
     forbidden_values: [...new Set(forbiddenValues)],
     channel,
     audience: publicChannel ? 'public' : 'internal',
-    policy: 'lara_brand_only',
-    has_lara_brand: hasBrand,
+    policy: 'configurable_brand_only',
+    public_price_policy: 'never_publish_internal_price',
+    has_brand: hasBrand,
     phone_leak_scan: true,
   };
 }
