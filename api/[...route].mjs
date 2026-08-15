@@ -22,8 +22,10 @@ function json(res, status, payload) {
 }
 
 function routeFromRequest(req) {
-  const pathname = new URL(req.url || '/', 'http://localhost').pathname;
-  return pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
+  const url = new URL(req.url || '/', 'http://localhost');
+  const explicitRoute = url.searchParams.get('route');
+  if (explicitRoute) return explicitRoute.replace(/^\/api\//, '').replace(/\/+$/, '');
+  return url.pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
 }
 
 export default async function handler(req, res) {
