@@ -9,6 +9,6 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { handleTelegramUpdate } = await import('../../src/runtime/vercel-handler.mjs');
+  const { handleTelegramUpdate } = await import('../../runtime/vercel-handler.mjs');
   return handleTelegramUpdate(req, res);
 }

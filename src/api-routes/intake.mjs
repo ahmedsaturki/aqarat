@@ -1,4 +1,4 @@
-import { handleIntake } from '../src/runtime/vercel-handler.mjs';
+import { handleIntake } from '../runtime/vercel-handler.mjs';
 
 export default function handler(req, res) {
   return handleIntake(req, res);

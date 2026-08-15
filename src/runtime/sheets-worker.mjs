@@ -4,6 +4,24 @@ const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const GOOGLE_SHEETS_WEBHOOK_URL = process.env.GOOGLE_SHEETS_WEBHOOK_URL || '';
 const GOOGLE_SHEETS_WEBHOOK_SECRET = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET || '';
+const OUTBOUND_TIMEOUT_MS = Math.max(1000, Number(process.env.OUTBOUND_TIMEOUT_MS || 15000));
+
+async function timedFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OUTBOUND_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeout = new Error('outbound_request_timeout');
+      timeout.code = 'TIMEOUT';
+      throw timeout;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function requireConfig() {
   if (!SUPABASE_URL) throw new Error('SUPABASE_URL_required');
@@ -12,7 +30,7 @@ function requireConfig() {
 
 async function supabase(path, options = {}) {
   requireConfig();
-  const response = await fetch(`${SUPABASE_URL}${path}`, {
+  const response = await timedFetch(`${SUPABASE_URL}${path}`, {
     ...options,
     headers: {
       apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -28,7 +46,6 @@ async function supabase(path, options = {}) {
   if (!response.ok) {
     const error = new Error(`supabase_http_${response.status}`);
     error.status = response.status;
-    error.body = body;
     throw error;
   }
   return body;
@@ -101,13 +118,13 @@ async function updateProjection(propertyId, patch) {
 }
 
 async function deliverProjection(projection) {
-  if (!GOOGLE_SHEETS_WEBHOOK_URL) {
-    const error = new Error('GOOGLE_SHEETS_WEBHOOK_URL_required');
+  if (!GOOGLE_SHEETS_WEBHOOK_URL || !GOOGLE_SHEETS_WEBHOOK_SECRET) {
+    const error = new Error('GOOGLE_SHEETS_WEBHOOK_CONFIG_required');
     error.code = 'CONFIG_MISSING';
     throw error;
   }
 
-  const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+  const response = await timedFetch(GOOGLE_SHEETS_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -126,7 +143,6 @@ async function deliverProjection(projection) {
   if (!response.ok) {
     const error = new Error(`sheets_transport_http_${response.status}`);
     error.status = response.status;
-    error.body = body;
     throw error;
   }
 

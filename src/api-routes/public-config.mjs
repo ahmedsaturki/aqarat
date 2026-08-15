@@ -1,4 +1,4 @@
-import { getPublicBrandConfig } from '../src/config/public-brand.mjs';
+import { getPublicBrandConfig } from '../config/public-brand.mjs';
 
 export default function handler(req, res) {
   if (req.method !== 'GET') {

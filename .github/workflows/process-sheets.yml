@@ -15,10 +15,11 @@ jobs:
     steps:
       - name: Process queued Google Sheets jobs
         env:
-          AQRAT_RUNTIME_URL: https://aqarat-eg.vercel.app
+          AQRAT_RUNTIME_URL: ${{ vars.AQARAT_RELEASE_URL }}
           JOB_RUNNER_SECRET: ${{ secrets.JOB_RUNNER_SECRET }}
         run: |
           set -eu
+          test -n "$AQRAT_RUNTIME_URL"
           test -n "$JOB_RUNNER_SECRET"
           curl --fail-with-body --silent --show-error \
             --max-time 30 \
