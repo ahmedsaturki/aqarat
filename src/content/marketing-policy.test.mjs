@@ -43,6 +43,24 @@ test('public safety gate blocks leaked private contact data', () => {
   assert.equal(result.ok, false);
 });
 
+test('public safety gate blocks an unrelated Egyptian phone even when it is not on the entity', () => {
+  const result = assertPublicCopySafe(
+    'أرض مميزة في مدينة السادات. للتواصل 01112345678 — لارا للتسويق العقاري.',
+    { city: 'مدينة السادات' },
+    'telegram',
+  );
+  assert.equal(result.ok, false);
+});
+
+test('public safety gate requires Lara brand on public channels', () => {
+  const result = assertPublicCopySafe(
+    'أرض مميزة في مدينة السادات.',
+    { city: 'مدينة السادات' },
+    'facebook',
+  );
+  assert.equal(result.ok, false);
+});
+
 test('public safety gate allows a marketing CTA without private contact data', () => {
   const result = assertPublicCopySafe(
     'أرض مميزة في مدينة السادات. للتفاصيل تواصل مع لارا للتسويق العقاري.',
