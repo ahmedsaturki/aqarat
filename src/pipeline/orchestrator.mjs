@@ -75,16 +75,14 @@ export function planPublication({ contentVariantId, channel, destination, review
 
 export function buildPipelineDecision({ entity, leadSignal = {}, content = null, channel = 'telegram', contentContext = {} }) {
   const lead = buildLead(leadSignal);
-  const marketingContent = content
-    ? {
-        ...buildFactualContent(entity, { channel, ...contentContext }),
-        body: content,
-        persuasion: buildPersuasionPlan(entity, { channel, ...contentContext }),
-        public_contact_policy: 'lara_brand_only',
-        style: 'sales_marketing',
-        psychology_policy: 'ethical_influence',
-      }
-    : buildMarketingContent(entity, channel, contentContext);
+
+  // Public output must always be produced by the controlled marketing renderer.
+  // A caller-supplied body is treated only as an upstream draft signal and can
+  // never bypass the sales, privacy, and Lara-contact policies.
+  const marketingContent = buildMarketingContent(entity, channel, {
+    ...contentContext,
+    upstream_draft_present: content != null && String(content).trim() !== '',
+  });
 
   const safety = assertPublicCopySafe(marketingContent.body, entity, channel);
   if (!safety.ok) throw new Error('public_marketing_privacy_violation');
