@@ -15,7 +15,6 @@ function json(res, status, payload, correlationId) {
   res.setHeader('content-type', 'application/json; charset=utf-8');
   res.setHeader('content-length', String(Buffer.byteLength(body)));
   res.setHeader('cache-control', 'no-store');
-  res.setHeader('x-aqarat-correlation-id', correlationId);
   res.end(body);
 }
 
@@ -28,6 +27,10 @@ function safeEqual(expected, actual) {
   const a = Buffer.from(String(expected || ''));
   const b = Buffer.from(String(actual || ''));
   return a.length > 0 && a.length === b.length && timingSafeEqual(a, b);
+}
+
+function productionOnly() {
+  return !process.env.VERCEL_ENV || process.env.VERCEL_ENV === 'production';
 }
 
 function authorizedIntake(req) {
@@ -49,36 +52,23 @@ async function supabase(path, options = {}) {
 
   const text = await response.text();
   let body = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = text;
-  }
-
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
   if (!response.ok) {
     const error = new Error(`supabase_http_${response.status}`);
     error.status = response.status;
     error.body = body;
     throw error;
   }
-
   return body;
 }
 
 async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
-
   return await new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     let settled = false;
-
-    const finish = (fn, value) => {
-      if (settled) return;
-      settled = true;
-      fn(value);
-    };
-
+    const finish = (fn, value) => { if (!settled) { settled = true; fn(value); } };
     req.on('data', (chunk) => {
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
@@ -88,33 +78,25 @@ async function readBody(req) {
       }
       chunks.push(chunk);
     });
-
     req.on('end', () => {
       try {
         const raw = Buffer.concat(chunks).toString('utf8').trim();
         finish(resolve, raw ? JSON.parse(raw) : {});
-      } catch {
-        finish(reject, new Error('invalid_json'));
-      }
+      } catch { finish(reject, new Error('invalid_json')); }
     });
-
     req.on('error', (error) => finish(reject, error));
   });
 }
 
 async function findExistingIntakeEvent(event) {
   if (!event.external_event_id) return null;
-  const rows = await supabase(
-    `/rest/v1/intake_events?channel=eq.${encodeURIComponent(event.channel)}&external_event_id=eq.${encodeURIComponent(event.external_event_id)}&select=id,status,parsed_payload,raw_text&limit=1`,
-    { method: 'GET' },
-  );
+  const rows = await supabase(`/rest/v1/intake_events?channel=eq.${encodeURIComponent(event.channel)}&external_event_id=eq.${encodeURIComponent(event.external_event_id)}&select=id,status,parsed_payload,raw_text&limit=1`);
   return rows?.[0] ?? null;
 }
 
 async function persistIntakeEvent(event) {
   const existing = await findExistingIntakeEvent(event);
   if (existing) return existing;
-
   try {
     const rows = await supabase('/rest/v1/intake_events', {
       method: 'POST',
@@ -129,7 +111,6 @@ async function persistIntakeEvent(event) {
         status: 'received',
       }),
     });
-
     if (Array.isArray(rows) && rows[0]?.id) return rows[0];
   } catch (error) {
     if (error.status !== 409) throw error;
@@ -137,36 +118,27 @@ async function persistIntakeEvent(event) {
     if (raced) return raced;
     throw error;
   }
-
   throw new Error('intake_event_persisted_but_not_returned');
 }
 
 async function commitIntakeEvent(eventId) {
-  return supabase('/rest/v1/rpc/commit_intake_event', {
-    method: 'POST',
-    body: JSON.stringify({ p_event_id: eventId }),
-  });
+  return supabase('/rest/v1/rpc/commit_intake_event', { method: 'POST', body: JSON.stringify({ p_event_id: eventId }) });
 }
 
 async function sendTelegramMessage(chatId, text) {
   if (!TELEGRAM_BOT_TOKEN || chatId == null) return { sent: false, reason: 'telegram_bot_not_configured' };
   try {
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text }),
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok || payload?.ok === false) return { sent: false, reason: 'telegram_send_failed' };
     return { sent: true };
-  } catch {
-    return { sent: false, reason: 'telegram_send_error' };
-  }
+  } catch { return { sent: false, reason: 'telegram_send_error' }; }
 }
 
 function authorizedTelegram(req) {
-  if (!TELEGRAM_WEBHOOK_SECRET) return false;
-  return safeEqual(TELEGRAM_WEBHOOK_SECRET, req.headers['x-telegram-bot-api-secret-token']);
+  return Boolean(TELEGRAM_WEBHOOK_SECRET) && safeEqual(TELEGRAM_WEBHOOK_SECRET, req.headers['x-telegram-bot-api-secret-token']);
 }
 
 async function processEvent(event) {
@@ -175,33 +147,25 @@ async function processEvent(event) {
     error.status = 422;
     throw error;
   }
-
   const stored = await persistIntakeEvent(event);
   const result = await commitIntakeEvent(stored.id);
-
   return { ok: true, intake_event_id: stored.id, result };
 }
 
 function productionError(error) {
   const status = error.status === 422 ? 422 : error.status === 401 || error.status === 403 ? 502 : 500;
-  const publicError = status === 422 ? 'invalid_intake_request' : status === 502 ? 'upstream_unavailable' : 'internal_error';
-  return { status, error: publicError };
+  return { status, error: status === 422 ? 'invalid_intake_request' : status === 502 ? 'upstream_unavailable' : 'internal_error' };
 }
 
 export async function handleHealth(_req, res) {
   const correlationId = randomUUID();
-  return json(res, 200, {
-    ok: true,
-    service: 'aqarat-intake',
-    version: 'v1',
-    telegram_token_configured: Boolean(TELEGRAM_BOT_TOKEN),
-    intake_secret_configured: Boolean(INTAKE_WEBHOOK_SECRET),
-  }, correlationId);
+  return json(res, 200, { ok: true, service: 'aqarat-intake', version: 'v1', telegram_token_configured: Boolean(TELEGRAM_BOT_TOKEN), intake_secret_configured: Boolean(INTAKE_WEBHOOK_SECRET) }, correlationId);
 }
 
 export async function handleIntake(req, res) {
   const correlationId = randomUUID();
   if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' }, correlationId);
+  if (!productionOnly()) return json(res, 404, { ok: false, error: 'external_integrations_disabled_in_preview' }, correlationId);
   if (!authorizedIntake(req)) return json(res, 401, { ok: false, error: 'intake_unauthorized' }, correlationId);
 
   try {
@@ -218,16 +182,14 @@ export async function handleIntake(req, res) {
 export async function handleTelegramUpdate(req, res) {
   const correlationId = randomUUID();
   if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' }, correlationId);
+  if (!productionOnly()) return json(res, 404, { ok: false, error: 'external_integrations_disabled_in_preview' }, correlationId);
   if (!authorizedTelegram(req)) return json(res, 401, { ok: false, error: 'telegram_webhook_unauthorized' }, correlationId);
 
   try {
     const payload = await readBody(req);
     const event = telegramUpdateToIntakeEvent(payload);
     const result = await processEvent(event);
-    const acknowledgement = await sendTelegramMessage(
-      event.chat_id,
-      '✅ وصلت رسالتك. تم تسجيل البيانات وبدء المعالجة في Aqarat OS.',
-    );
+    const acknowledgement = await sendTelegramMessage(event.chat_id, '✅ وصلت رسالتك. تم تسجيل البيانات وبدء المعالجة في Aqarat OS.');
     return json(res, 200, { ...result, acknowledgement }, correlationId);
   } catch (error) {
     const mapped = productionError(error);
