@@ -1,9 +1,10 @@
 function norm(value) { return String(value ?? '').toLowerCase().normalize('NFKC').replace(/[إأآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
+function cityKey(value) { const n = norm(value); return ['مدينة السادات','السادات','سادات','sadat city','el sadat','el-sadat','alsadat'].map(norm).includes(n) ? 'سادات' : n; }
 function num(value) { const n = Number(value); return Number.isFinite(n) ? n : null; }
 function phoneKey(value) { return String(value ?? '').replace(/\D/g, '').replace(/^20/, '').replace(/^0/, ''); }
 function similarity(a,b){const aa=norm(a),bb=norm(b);if(!aa||!bb)return 0;if(aa===bb)return 1;if(aa.includes(bb)||bb.includes(aa))return .88;const as=new Set(aa.split(' ')),bs=new Set(bb.split(' '));return [...as].filter(x=>bs.has(x)).length/Math.max(as.size,bs.size)}
 function relativeDifference(a,b){const aa=num(a),bb=num(b);if(aa==null||bb==null)return null;return Math.abs(aa-bb)/Math.max(Math.abs(aa),Math.abs(bb),1)}
-export function scorePropertyMatch(a,b){const reasons=[];let score=0;const typeA=norm(a?.property_type??a?.type),typeB=norm(b?.property_type??b?.type),txA=norm(a?.transaction_type??a?.transaction),txB=norm(b?.transaction_type??b?.transaction),cityA=norm(a?.city),cityB=norm(b?.city),districtA=norm(a?.district),districtB=norm(b?.district),parcelA=num(a?.parcel_number),parcelB=num(b?.parcel_number),pa=phoneKey(a?.phone??a?.primary_phone),pb=phoneKey(b?.phone??b?.primary_phone);
+export function scorePropertyMatch(a,b){const reasons=[];let score=0;const typeA=norm(a?.property_type??a?.type),typeB=norm(b?.property_type??b?.type),txA=norm(a?.transaction_type??a?.transaction),txB=norm(b?.transaction_type??b?.transaction),cityA=cityKey(a?.city),cityB=cityKey(b?.city),districtA=norm(a?.district),districtB=norm(b?.district),parcelA=num(a?.parcel_number),parcelB=num(b?.parcel_number),pa=phoneKey(a?.phone??a?.primary_phone),pb=phoneKey(b?.phone??b?.primary_phone);
   if(pa&&pb&&pa===pb&&cityA&&cityA===cityB)return{score:1,reasons:['same_phone','same_city']};
   if(pa&&pb&&pa===pb){score+=.55;reasons.push('same_phone')}
   if(parcelA!=null&&parcelB!=null&&parcelA===parcelB&&cityA&&cityA===cityB&&typeA&&typeA===typeB){score+=.70;reasons.push('same_parcel_city_type')}
