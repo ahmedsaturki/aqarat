@@ -155,7 +155,7 @@ export default async function handler(req, res) {
       payload.interests = interests;
       payload.interactions = interactions;
     }
-    if (view === 'all' || view === 'audit') payload.audit_events = await readPage('audit_events', 'select=id,event_type,entity_type,entity_id,actor_type,actor_id,correlation_id,created_at&order=created_at.desc');
+    if (view === 'all' || view === 'audit') payload.audit_events = await readPage('audit_events', 'select=id,event_type,entity_type,entity_id,actor_type,actor_id,correlation_id,reason,payload,created_at&order=created_at.desc');
 
     const response = { ok: true, generated_at: new Date().toISOString(), view, limit, offset, search: search || null, pagination, ...payload };
     console.info(JSON.stringify({ event: 'dashboard_data_completed', view, limit, offset, duration_ms: Date.now() - startedAt, correlation_id: requestCorrelationId }));
