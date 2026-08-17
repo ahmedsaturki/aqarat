@@ -1,8 +1,10 @@
 import { performance } from 'node:perf_hooks';
+import { timedFetch } from '../src/runtime/http.mjs';
 
 const baseUrl = process.env.AQARAT_RELEASE_URL || process.env.BASE_URL || 'https://aqarat-eg.vercel.app';
 const budgetMs = Number(process.env.PERF_P95_BUDGET_MS || 2_500);
 const sampleCount = Math.max(3, Math.min(10, Number(process.env.PERF_SAMPLES || 5)));
+const requestTimeoutMs = Math.max(1_000, Math.min(5_000, Number(process.env.PERF_REQUEST_TIMEOUT_MS || 5_000)));
 const targets = [
   { path: '/api/healthz', status: 200 },
   { path: '/api/public-config', status: 200 },
@@ -15,11 +17,10 @@ function percentile(values, ratio) {
 
 async function sample(target) {
   const started = performance.now();
-  const response = await fetch(new URL(target.path, baseUrl), {
+  const response = await timedFetch(new URL(target.path, baseUrl), {
     headers: { accept: 'application/json' },
     redirect: 'manual',
-    signal: AbortSignal.timeout(5_000),
-  });
+  }, requestTimeoutMs);
   const elapsedMs = Number((performance.now() - started).toFixed(2));
   await response.arrayBuffer();
   return { ...target, status: response.status, elapsedMs };
