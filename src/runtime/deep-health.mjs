@@ -1,4 +1,5 @@
 import { safeErrorMessage } from './observability.mjs';
+import { summarizeJobHealth } from './job-health.mjs';
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
@@ -137,12 +138,13 @@ async function checkSheetsQueue({ supabaseUrl, serviceKey }) {
   if (!supabaseUrl || !serviceKey) return { status: 'not_configured' };
   try {
     const response = await timedFetch(
-      `${supabaseUrl.replace(/\/$/, '')}/rest/v1/jobs?select=id&job_type=eq.google_sheets_projection&status=in.(queued,running)&limit=100`,
+      `${supabaseUrl.replace(/\/$/, '')}/rest/v1/jobs?select=status,attempts,max_attempts,available_at,started_at,lease_expires_at,created_at,updated_at&job_type=eq.google_sheets_projection&status=in.(queued,running,failed)&order=updated_at.asc&limit=500`,
       { headers: supabaseHeaders(serviceKey) },
     );
     if (!response.ok) return { status: 'error', code: response.status };
     const rows = await response.json();
-    return { status: 'ok', pending_jobs: Array.isArray(rows) ? rows.length : 0 };
+    const metrics = summarizeJobHealth(rows);
+    return { status: metrics.status, pending_jobs: metrics.queued_jobs + metrics.running_jobs, metrics };
   } catch (error) {
     return { status: 'error', error: redactError(error) };
   }
