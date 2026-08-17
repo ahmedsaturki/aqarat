@@ -19,6 +19,40 @@ test('viewer has read access but no operational write access', () => {
   assert.equal(hasDashboardPermission('viewer', 'dashboard.manage.members'), false);
 });
 
+test('RBAC permission matrix preserves role boundaries', () => {
+  const matrix = {
+    owner: {
+      allow: ['dashboard.action.publications', 'dashboard.manage.roles', 'dashboard.manage.sessions'],
+      deny: [],
+    },
+    admin: {
+      allow: ['dashboard.action.publications', 'dashboard.manage.members'],
+      deny: ['dashboard.manage.roles', 'dashboard.manage.sessions'],
+    },
+    operator: {
+      allow: ['dashboard.action.jobs', 'dashboard.action.leads'],
+      deny: ['dashboard.action.publications', 'dashboard.manage.members', 'dashboard.read.audit'],
+    },
+    analyst: {
+      allow: ['dashboard.read.insights', 'dashboard.read.audit'],
+      deny: ['dashboard.action.leads', 'dashboard.action.jobs', 'dashboard.manage.members'],
+    },
+    viewer: {
+      allow: ['dashboard.read.overview', 'dashboard.read.insights'],
+      deny: ['dashboard.action.review', 'dashboard.action.jobs', 'dashboard.manage.members'],
+    },
+  };
+
+  for (const [role, expectations] of Object.entries(matrix)) {
+    for (const permission of expectations.allow) {
+      assert.equal(hasDashboardPermission(role, permission), true, `${role} should allow ${permission}`);
+    }
+    for (const permission of expectations.deny) {
+      assert.equal(hasDashboardPermission(role, permission), false, `${role} should deny ${permission}`);
+    }
+  }
+});
+
 test('analyst can read audit and insights but cannot mutate leads', () => {
   assert.equal(hasDashboardPermission('analyst', 'dashboard.read.audit'), true);
   assert.equal(hasDashboardPermission('analyst', 'dashboard.read.insights'), true);
