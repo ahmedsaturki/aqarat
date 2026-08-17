@@ -10,6 +10,22 @@ const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 function json(res, status, payload) { res.status(status).json(payload); }
 const headers = (extra = {}) => ({ apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}`, 'content-type': 'application/json', ...extra });
 
+async function applyPropertyMutation(payload) {
+  const response = await timedFetch(`${SUPABASE_URL}/rest/v1/rpc/dashboard_apply_property_mutation`, {
+    method: 'POST', headers: headers(), body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+  if (!response.ok) {
+    const error = new Error(`dashboard_property_mutation_rpc_${response.status}`);
+    error.status = response.status;
+    error.body = body;
+    throw error;
+  }
+  return body;
+}
+
 async function applyAction(payload) {
   const response = await timedFetch(`${SUPABASE_URL}/rest/v1/rpc/dashboard_apply_action`, {
     method: 'POST', headers: headers(), body: JSON.stringify(payload),
@@ -44,6 +60,21 @@ export default async function handler(req, res) {
   const action = String(body?.action || '');
   const id = String(body?.id || '');
   try {
+    const propertyActions = new Set(['property_create', 'property_update', 'property_archive']);
+    if (propertyActions.has(action)) {
+      if (!requireDashboardPermission(access, 'dashboard.action.properties').ok) return json(res, 403, { error: 'dashboard_permission_required' });
+      const mutationAction = action.slice('property_'.length);
+      if (mutationAction !== 'create' && !id) return json(res, 422, { error: 'id_required' });
+      const result = await applyPropertyMutation({
+        p_action: mutationAction,
+        p_property_id: mutationAction === 'create' ? null : (id || null),
+        p_changes: body?.changes && typeof body.changes === 'object' ? body.changes : {},
+        p_actor_id: access.actorId,
+      });
+      if (!result?.ok) return json(res, 409, result || { error: 'property_mutation_rejected' });
+      return json(res, 200, result);
+    }
+
     if (!id) return json(res, 422, { error: 'id_required' });
     const actionPermissions = {
       review_approve: 'dashboard.action.review',
