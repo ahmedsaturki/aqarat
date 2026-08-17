@@ -45,7 +45,7 @@ test('deep health returns healthy matrix when all dependencies respond', async (
     assert.equal(result.components.gemini.status, 'ok');
     assert.equal(result.components.google_sheets.status, 'ok');
     assert.ok(seen.some((url) => url.includes('/rest/v1/properties')));
-    assert.equal(geminiRequests[0].generationConfig.maxOutputTokens, 64);
+    assert.equal(geminiRequests[0].generationConfig.maxOutputTokens, 256);
     assert.equal(geminiRequests[0].generationConfig.responseSchema.required[0], 'ok');
   } finally {
     globalThis.fetch = originalFetch;
