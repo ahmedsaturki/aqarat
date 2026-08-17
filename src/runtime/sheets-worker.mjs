@@ -35,6 +35,14 @@ async function supabase(path, options = {}) {
   return body;
 }
 
+async function requeueExpiredJobs() {
+  const result = await supabase('/rest/v1/rpc/requeue_expired_jobs', {
+    method: 'POST',
+    body: '{}',
+  });
+  return Number(result) || 0;
+}
+
 async function claimJob(workerId = 'vercel-sheets-worker') {
   const rows = await supabase('/rest/v1/rpc/claim_job', {
     method: 'POST',
@@ -207,6 +215,11 @@ export async function processOneSheetsJob(workerId = 'vercel-sheets-worker') {
 }
 
 export async function processSheetsJobs(maxJobs = 3, workerId = 'vercel-sheets-worker') {
+  try {
+    await requeueExpiredJobs();
+  } catch (error) {
+    console.warn(JSON.stringify({ event: 'sheets_worker_requeue_failed', error: error?.message || 'maintenance_failed' }));
+  }
   const results = [];
   for (let i = 0; i < Math.max(1, Math.min(Number(maxJobs) || 1, 10)); i += 1) {
     const result = await processOneSheetsJob(workerId);
