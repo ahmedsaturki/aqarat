@@ -8,6 +8,7 @@
     "check": "npm test && npm run check:syntax",
     "start:intake": "node src/runtime/intake-api.mjs",
     "verify:release": "node scripts/verify-release.mjs",
+    "verify:backup": "node scripts/verify-backup-readiness.mjs",
     "test:visual": "playwright test",
     "performance:smoke": "node scripts/performance-smoke.mjs"
   },
