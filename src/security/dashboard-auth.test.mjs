@@ -8,6 +8,15 @@ test('Supabase dashboard access requires a bearer token', async () => {
   assert.deepEqual(result, { ok: false, reason: 'dashboard_auth_required' });
 });
 
+test('dashboard access ignores query tokens and non-Bearer authorization schemes', async () => {
+  const queryToken = { url: '/api/dashboard/data?access_token=leaked-token', headers: {} };
+  const basicAuth = { headers: { authorization: 'Basic leaked-token' } };
+  assert.equal(hasSupabaseBearerToken(queryToken), false);
+  assert.equal(hasSupabaseBearerToken(basicAuth), false);
+  assert.deepEqual(await resolveSupabaseDashboardAccess(queryToken), { ok: false, reason: 'dashboard_auth_required' });
+  assert.deepEqual(await resolveSupabaseDashboardAccess(basicAuth), { ok: false, reason: 'dashboard_auth_required' });
+});
+
 test('bearer token is never trusted without verified user and active membership', async () => {
   const req = { headers: { authorization: 'Bearer user-token' } };
   assert.equal(hasSupabaseBearerToken(req), true);
