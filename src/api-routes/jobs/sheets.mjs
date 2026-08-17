@@ -1,4 +1,5 @@
 import { processSheetsJobs } from '../../runtime/sheets-worker.mjs';
+import { safeErrorMessage } from '../../runtime/observability.mjs';
 
 function json(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -23,7 +24,7 @@ export default async function handler(req, res) {
     const results = await processSheetsJobs(5, 'vercel-sheets-worker');
     return json(res, 200, { ok: true, results });
   } catch (error) {
-    console.error(JSON.stringify({ event: 'sheets_worker_error', error: error?.message || String(error) }));
+    console.error(JSON.stringify({ event: 'sheets_worker_error', error: safeErrorMessage(error) }));
     return json(res, 500, { ok: false, error: 'sheets_worker_failed' });
   }
 }

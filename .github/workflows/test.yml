@@ -21,6 +21,8 @@ jobs:
         run: npm run check
       - name: Verify backup readiness contract
         run: npm run verify:backup
+      - name: Verify production error redaction
+        run: npm run verify:redaction
 
   visual:
     runs-on: ubuntu-latest
