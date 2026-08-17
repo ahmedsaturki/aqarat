@@ -91,6 +91,17 @@ test('audit view requests safe explorer fields without internal state snapshots'
     assert.match(calls[0], /select=id,event_type,entity_type,entity_id,actor_type,actor_id,correlation_id,reason,payload,created_at/);
     assert.equal(calls[0].includes('before_state'), false);
     assert.equal(calls[0].includes('after_state'), false);
+
+    const searched = responseCapture();
+    await dashboardData({
+      method: 'GET',
+      query: { view: 'audit', q: 'dashboard_action' },
+      headers: { cookie: await dashboardCookie() },
+      aqaratCorrelationId: 'dashboard-audit-search-1',
+    }, searched);
+    assert.equal(searched.statusCode, 200);
+    assert.match(calls.at(-1), /or=\(event_type\.ilike\.\*dashboard_action\*/);
+    assert.equal(calls.at(-1).includes('before_state'), false);
   } finally {
     global.fetch = originalFetch;
   }
