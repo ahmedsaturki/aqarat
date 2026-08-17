@@ -1,4 +1,6 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+import { timedFetch } from '../runtime/http.mjs';
+
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 const GEMINI_BASE_URL = String(process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -63,13 +65,9 @@ export async function runStructuredAgent({
   let lastError = null;
 
   while (attempt <= maxRetries) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
     try {
-      const response = await fetch(`${GEMINI_BASE_URL}/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+      const response = await timedFetch(`${GEMINI_BASE_URL}/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
         method: 'POST',
-        signal: controller.signal,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: String(system || '') }] },
@@ -104,8 +102,6 @@ export async function runStructuredAgent({
       if (attempt >= maxRetries || (error.status && !shouldRetry(error.status))) throw error;
       await sleep(Math.min(8000, 500 * (2 ** attempt)));
       attempt += 1;
-    } finally {
-      clearTimeout(timer);
     }
   }
 

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { timedFetch } from '../runtime/http.mjs';
 import { fetchPublicSource } from './http-adapter.mjs';
 import { assertDiscoverySourceAllowed } from './source-policy.mjs';
 import { extractCandidates } from './entity-extractor.mjs';
@@ -21,7 +22,7 @@ function authHeaders(extra = {}) {
 
 async function sb(path, init = {}) {
   if (!SB_URL || !SB_KEY) throw new Error('discovery_worker_supabase_config_missing');
-  const response = await fetch(`${SB_URL}${path}`, { ...init, headers: authHeaders(init.headers) });
+  const response = await timedFetch(`${SB_URL}${path}`, { ...init, headers: authHeaders(init.headers) });
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }

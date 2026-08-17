@@ -2,6 +2,7 @@ import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 import { MAX_BODY_BYTES } from './runtime-config.mjs';
+import { timedFetch } from './http.mjs';
 
 const PORT = Number(process.env.PORT || 8787);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -72,7 +73,7 @@ function requireRuntimeConfig() {
 
 async function supabase(path, options = {}) {
   requireRuntimeConfig();
-  const response = await fetch(`${SUPABASE_URL}${path}`, {
+  const response = await timedFetch(`${SUPABASE_URL}${path}`, {
     ...options,
     headers: {
       apikey: SUPABASE_SERVICE_ROLE_KEY,

@@ -1,27 +1,11 @@
 import { buildSheetsProjection } from '../workers/sheets-worker.mjs';
-import { OUTBOUND_TIMEOUT_MS } from './runtime-config.mjs';
+import { timedFetch } from './http.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const GOOGLE_SHEETS_WEBHOOK_URL = process.env.GOOGLE_SHEETS_WEBHOOK_URL || '';
 const GOOGLE_SHEETS_WEBHOOK_SECRET = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET || '';
 
-async function timedFetch(url, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), OUTBOUND_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      const timeout = new Error('outbound_request_timeout');
-      timeout.code = 'TIMEOUT';
-      throw timeout;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 function requireConfig() {
   if (!SUPABASE_URL) throw new Error('SUPABASE_URL_required');

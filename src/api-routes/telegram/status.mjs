@@ -1,3 +1,5 @@
+import { timedFetch } from '../../runtime/http.mjs';
+
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const ADMIN_SECRET = process.env.TELEGRAM_ADMIN_STATUS_SECRET || '';
@@ -26,7 +28,7 @@ function authorized(req) {
 
 async function telegram(method, body = {}) {
   if (!TOKEN) throw new Error('TELEGRAM_BOT_TOKEN_not_configured');
-  const response = await fetch(`https://api.telegram.org/bot${TOKEN}/${method}`, {
+  const response = await timedFetch(`https://api.telegram.org/bot${TOKEN}/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),

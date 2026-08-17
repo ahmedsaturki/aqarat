@@ -1,4 +1,5 @@
 import { dashboardSessionValid } from './login.mjs';
+import { timedFetch } from '../../runtime/http.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -9,7 +10,7 @@ function json(res, status, payload) {
 
 async function count(table, filter = '') {
   const url = `${SUPABASE_URL}/rest/v1/${table}?select=id&limit=1${filter}`;
-  const response = await fetch(url, {
+  const response = await timedFetch(url, {
     headers: {
       apikey: SERVICE_KEY,
       authorization: `Bearer ${SERVICE_KEY}`,
@@ -23,7 +24,7 @@ async function count(table, filter = '') {
 }
 
 async function rows(table, query) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+  const response = await timedFetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
     headers: { apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}` },
   });
   if (!response.ok) throw new Error(`supabase_${table}_${response.status}`);

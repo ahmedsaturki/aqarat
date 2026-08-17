@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { dashboardSessionActor } from './login.mjs';
+import { timedFetch } from '../../runtime/http.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -8,7 +9,7 @@ function json(res, status, payload) { res.status(status).json(payload); }
 const headers = (extra = {}) => ({ apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}`, 'content-type': 'application/json', ...extra });
 
 async function applyAction(payload) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/dashboard_apply_action`, {
+  const response = await timedFetch(`${SUPABASE_URL}/rest/v1/rpc/dashboard_apply_action`, {
     method: 'POST', headers: headers(), body: JSON.stringify(payload),
   });
   const text = await response.text();
