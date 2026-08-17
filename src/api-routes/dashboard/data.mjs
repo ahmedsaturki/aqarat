@@ -98,6 +98,15 @@ async function count(table, filter = '') {
   return Number.isFinite(total) ? total : 0;
 }
 
+async function rpc(name, payload) {
+  const response = await timedFetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: 'POST', headers: headers({ 'content-type': 'application/json' }), body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`supabase_rpc_${name}_${response.status}`);
+  const body = await response.json();
+  return Array.isArray(body) ? body : [];
+}
+
 export default async function handler(req, res) {
   const requestCorrelationId = correlationId(req);
   const startedAt = Date.now();
@@ -119,6 +128,7 @@ export default async function handler(req, res) {
     jobs: 'dashboard.read.jobs',
     publications: 'dashboard.read.publications',
     audit: 'dashboard.read.audit',
+    members: 'dashboard.manage.members',
   }[view];
   if (!viewPermission || !requireDashboardPermission(access, viewPermission).ok) {
     return json(res, 403, { error: 'dashboard_permission_required' }, requestCorrelationId);
@@ -128,6 +138,9 @@ export default async function handler(req, res) {
   const { term: search, filter } = searchFilter(view, queryValue(req, 'q'));
   const pagination = {};
   const page = { limit, offset };
+  if (view === 'members' && (!access.workspaceId || access.legacy)) {
+    return json(res, 409, { error: 'workspace_auth_required' }, requestCorrelationId);
+  }
   const readPage = async (table, query, key = table) => {
     const result = await rows(table, query, page);
     pagination[key] = result.page;
@@ -150,6 +163,12 @@ export default async function handler(req, res) {
     }
 
     const payload = {};
+    if (view === 'members') {
+      const members = await rpc('dashboard_list_members', { p_workspace_id: access.workspaceId });
+      const pageItems = members.slice(offset, offset + limit);
+      pagination.members = { limit, offset, returned: pageItems.length, has_more: offset + limit < members.length, next_offset: offset + limit < members.length ? offset + limit : null };
+      payload.members = pageItems;
+    }
     if (view === 'all' || view === 'properties') payload.properties = await readPage('properties', `select=id,title,city,district,property_type,transaction_type,area_m2,price,currency,confidence,status,parcel_number,canonical_key,updated_at&order=updated_at.desc${view === 'properties' ? filter : ''}`);
     if (view === 'all' || view === 'leads') payload.leads = await readPage('leads', `select=id,person_id,property_id,intent,source,score,status,created_at,updated_at&order=updated_at.desc${view === 'leads' ? filter : ''}`);
     if (view === 'all' || view === 'discovery') {
