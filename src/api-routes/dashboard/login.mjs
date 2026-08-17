@@ -29,6 +29,14 @@ function sessionDetails(req) {
   return { actorId: `dashboard-session:${crypto.createHash('sha256').update(nonce).digest('hex').slice(0, 16)}` };
 }
 
+export function trustedDashboardOrigin(req) {
+  const configured = String(process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  const origin = String(req.headers?.origin || '').replace(/\/$/, '');
+  const fetchSite = String(req.headers?.['sec-fetch-site'] || '').toLowerCase();
+  if (fetchSite && !['same-origin', 'same-site', 'none'].includes(fetchSite)) return false;
+  return !origin || !configured || origin === configured;
+}
+
 function safeEqual(a, b) {
   const aa = Buffer.from(String(a));
   const bb = Buffer.from(String(b));
@@ -43,8 +51,17 @@ export function dashboardSessionActor(req) {
   return sessionDetails(req)?.actorId || null;
 }
 
+export function dashboardSessionCookieName() {
+  return COOKIE;
+}
+
+export function expiredDashboardSessionCookie() {
+  return `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed' });
+  if (!trustedDashboardOrigin(req)) return json(res, 403, { error: 'dashboard_origin_required' });
   if (!SECRET) return json(res, 503, { error: 'dashboard_secret_not_configured' });
 
   let body = req.body;
