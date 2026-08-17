@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { dashboardSessionActor } from './login.mjs';
 import { timedFetch } from '../../runtime/http.mjs';
+import { requireDashboardPermission, resolveLegacyDashboardAccess } from '../../security/dashboard-rbac.mjs';
 import { safeErrorMessage } from '../../runtime/observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -33,8 +34,8 @@ function trustedDashboardOrigin(req) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed' });
-  const actorId = dashboardSessionActor(req);
-  if (!actorId) return json(res, 401, { error: 'dashboard_auth_required' });
+  const access = resolveLegacyDashboardAccess(dashboardSessionActor(req));
+  if (!access.ok) return json(res, 401, { error: 'dashboard_auth_required' });
   if (!trustedDashboardOrigin(req)) return json(res, 403, { error: 'dashboard_origin_required' });
   if (!SUPABASE_URL || !SERVICE_KEY) return json(res, 503, { error: 'dashboard_config_missing' });
 
@@ -44,15 +45,24 @@ export default async function handler(req, res) {
   const id = String(body?.id || '');
   try {
     if (!id) return json(res, 422, { error: 'id_required' });
-    const allowed = new Set(['review_approve', 'review_reject', 'job_retry', 'publication_cancel', 'discovery_toggle', 'lead_status']);
-    if (!allowed.has(action)) return json(res, 400, { error: 'unsupported_action' });
+    const actionPermissions = {
+      review_approve: 'dashboard.action.review',
+      review_reject: 'dashboard.action.review',
+      job_retry: 'dashboard.action.jobs',
+      publication_cancel: 'dashboard.action.publications',
+      discovery_toggle: 'dashboard.action.discovery',
+      lead_status: 'dashboard.action.leads',
+    };
+    const permission = actionPermissions[action];
+    if (!permission) return json(res, 400, { error: 'unsupported_action' });
+    if (!requireDashboardPermission(access, permission).ok) return json(res, 403, { error: 'dashboard_permission_required' });
     const result = await applyAction({
       p_action: action,
       p_entity_id: id,
       p_notes: body?.notes ? String(body.notes).slice(0, 4000) : null,
       p_enabled: action === 'discovery_toggle' ? body?.enabled === true : null,
       p_status: action === 'lead_status' ? String(body?.status || '') : null,
-      p_actor_id: actorId,
+      p_actor_id: access.actorId,
       p_correlation_id: crypto.randomUUID(),
     });
     if (!result?.ok) return json(res, 409, result || { error: 'dashboard_action_rejected' });

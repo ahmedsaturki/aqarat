@@ -1,5 +1,6 @@
-import { dashboardSessionValid } from './login.mjs';
+import { dashboardSessionActor } from './login.mjs';
 import { timedFetch } from '../../runtime/http.mjs';
+import { requireDashboardPermission, resolveLegacyDashboardAccess } from '../../security/dashboard-rbac.mjs';
 import { safeErrorMessage } from '../../runtime/observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -101,10 +102,27 @@ export default async function handler(req, res) {
   const requestCorrelationId = correlationId(req);
   const startedAt = Date.now();
   if (req.method !== 'GET') return json(res, 405, { error: 'method_not_allowed' }, requestCorrelationId);
-  if (!dashboardSessionValid(req)) return json(res, 401, { error: 'dashboard_auth_required' }, requestCorrelationId);
+  const access = resolveLegacyDashboardAccess(dashboardSessionActor(req));
+  if (!access.ok) return json(res, 401, { error: 'dashboard_auth_required' }, requestCorrelationId);
   if (!SUPABASE_URL || !SERVICE_KEY) return json(res, 503, { error: 'supabase_dashboard_config_missing' }, requestCorrelationId);
 
   const view = String(queryValue(req, 'view') || 'all');
+  const viewPermission = {
+    all: 'dashboard.read.overview',
+    kpis: 'dashboard.read.overview',
+    properties: 'dashboard.read.properties',
+    leads: 'dashboard.read.leads',
+    discovery: 'dashboard.read.discovery',
+    content: 'dashboard.read.content',
+    review: 'dashboard.read.content',
+    insights: 'dashboard.read.insights',
+    jobs: 'dashboard.read.jobs',
+    publications: 'dashboard.read.publications',
+    audit: 'dashboard.read.audit',
+  }[view];
+  if (!viewPermission || !requireDashboardPermission(access, viewPermission).ok) {
+    return json(res, 403, { error: 'dashboard_permission_required' }, requestCorrelationId);
+  }
   const limit = boundedInteger(queryValue(req, 'limit'), DEFAULT_LIMIT, 1, MAX_LIMIT);
   const offset = boundedInteger(queryValue(req, 'offset'), 0, 0, MAX_OFFSET);
   const { term: search, filter } = searchFilter(view, queryValue(req, 'q'));
