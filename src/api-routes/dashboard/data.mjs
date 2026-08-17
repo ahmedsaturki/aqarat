@@ -1,4 +1,5 @@
 import { dashboardSessionValid } from './login.mjs';
+import { timedFetch } from '../../runtime/http.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -40,7 +41,7 @@ function boundedInteger(value, fallback, minimum, maximum) {
 async function rows(table, query, page) {
   if (!TABLES.has(table)) throw new Error('dashboard_table_not_allowed');
   const pageQuery = page ? `&limit=${page.limit + 1}&offset=${page.offset}` : '';
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}${pageQuery}`, { headers: headers() });
+  const response = await timedFetch(`${SUPABASE_URL}/rest/v1/${table}?${query}${pageQuery}`, { headers: headers() });
   if (!response.ok) throw new Error(`supabase_${table}_${response.status}`);
   const body = await response.json();
   const items = Array.isArray(body) ? body : [];
@@ -61,7 +62,7 @@ async function rows(table, query, page) {
 
 async function count(table, filter = '') {
   if (!TABLES.has(table)) throw new Error('dashboard_table_not_allowed');
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=id&limit=1${filter}`, { headers: headers({ Prefer: 'count=exact' }) });
+  const response = await timedFetch(`${SUPABASE_URL}/rest/v1/${table}?select=id&limit=1${filter}`, { headers: headers({ Prefer: 'count=exact' }) });
   if (!response.ok) throw new Error(`supabase_${table}_${response.status}`);
   const range = response.headers.get('content-range') || '';
   const total = Number(range.split('/').pop());
