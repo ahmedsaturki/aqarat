@@ -7,11 +7,15 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/runtime/deep-health.mjs'
-      - 'api/healthz/deep.mjs'
-      - 'scripts/verify-release.mjs'
-      - 'test/deep-health.test.mjs'
-      - '.github/workflows/verify-production.yml'
+      - 'api/**'
+      - 'src/**'
+      - 'scripts/**'
+      - 'test/**'
+      - 'vercel.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.env.example'
+      - '.github/workflows/**'
 
 permissions:
   contents: read

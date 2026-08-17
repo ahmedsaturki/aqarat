@@ -17,6 +17,20 @@ async function request(path, options = {}) {
 
 const health = await request('/healthz');
 if (health.status !== 200 || health.body?.ok !== true) throw new Error(`health_failed:${health.status}`);
+const requiredSecurityHeaders = {
+  'cache-control': 'no-store',
+  'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  'referrer-policy': 'no-referrer',
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+};
+for (const [name, expected] of Object.entries(requiredSecurityHeaders)) {
+  if (health.headers[name] !== expected) throw new Error(`security_header_failed:${name}`);
+}
+if (!/^[a-zA-Z0-9._:-]{1,128}$/.test(String(health.headers['x-correlation-id'] || ''))) {
+  throw new Error('correlation_id_header_failed');
+}
 if ('telegram_token_configured' in (health.body || {}) || 'intake_secret_configured' in (health.body || {})) {
   throw new Error('health_discloses_secret_configuration');
 }
