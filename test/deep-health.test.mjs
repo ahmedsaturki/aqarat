@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { collectDeepHealth } from '../src/runtime/deep-health.mjs';
 
-function mockResponse({ status = 200, body = {} } = {}) {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+function mockResponse({ status = 200, body = {}, headers = {} } = {}) {
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
 }
 
 test('deep health returns healthy matrix when all dependencies respond', async () => {
@@ -68,6 +68,33 @@ test('deep health marks a malformed Gemini response as degraded', async () => {
     assert.equal(result.ok, false);
     assert.equal(result.components.gemini.status, 'degraded');
     assert.equal(result.components.gemini.error, 'unexpected_response');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('deep health preserves Gemini 429 and exposes a bounded Retry-After hint', async () => {
+  const originalFetch = globalThis.fetch;
+  let geminiCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes(':generateContent')) {
+      geminiCalls += 1;
+      return mockResponse({ status: 429, headers: { 'retry-after': '120' }, body: { error: { status: 'RESOURCE_EXHAUSTED' } } });
+    }
+    throw new Error(`unexpected_url:${url}`);
+  };
+
+  try {
+    const result = await collectDeepHealth({
+      GEMINI_API_KEY: 'gemini-key',
+      GEMINI_MODEL: 'gemini-3.6-flash',
+      GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.components.gemini.status, 'error');
+    assert.equal(result.components.gemini.code, 429);
+    assert.equal(result.components.gemini.retry_after_seconds, 120);
+    assert.equal(geminiCalls, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }

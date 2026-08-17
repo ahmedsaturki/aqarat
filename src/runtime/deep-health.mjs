@@ -26,6 +26,16 @@ function supabaseHeaders(serviceKey) {
   };
 }
 
+function retryAfterSeconds(response) {
+  const value = response?.headers?.get?.('retry-after');
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(86400, Math.round(seconds));
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, Math.min(86400, Math.ceil((timestamp - Date.now()) / 1000)));
+}
+
 async function checkSupabase({ url, serviceKey }) {
   if (!url || !serviceKey) return { status: 'not_configured' };
   try {
@@ -87,7 +97,12 @@ async function checkGemini({ apiKey, model, baseUrl }) {
       }),
     });
     const payload = await response.json().catch(() => null);
-    if (!response.ok) return { status: 'error', code: response.status };
+    if (!response.ok) {
+      const retryAfter = retryAfterSeconds(response);
+      return retryAfter === null
+        ? { status: 'error', code: response.status }
+        : { status: 'error', code: response.status, retry_after_seconds: retryAfter };
+    }
     const parts = payload?.candidates?.[0]?.content?.parts;
     const text = Array.isArray(parts) ? parts.map((part) => part?.text || '').join('') : '';
     const finishReason = payload?.candidates?.[0]?.finishReason || null;

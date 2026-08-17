@@ -57,9 +57,9 @@ jobs:
         run: |
           set -eu
           test -n "$AQARAT_RELEASE_URL"
+          # Do not retry a 503 from deep health here: one 429 from Gemini
+          # would otherwise become three provider requests and amplify quota pressure.
           curl --fail-with-body --silent --show-error \
-            --retry 2 \
-            --retry-delay 2 \
             --max-time 30 \
             -H "x-aqarat-health-secret: ${DEEP_HEALTH_SECRET}" \
             "${AQARAT_RELEASE_URL}/api/healthz/deep"
