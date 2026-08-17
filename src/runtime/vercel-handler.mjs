@@ -1,7 +1,8 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 import { MAX_INTAKE_TEXT_LENGTH } from '../intake/engine.mjs';
-import { MAX_BODY_BYTES, OUTBOUND_TIMEOUT_MS } from './runtime-config.mjs';
+import { MAX_BODY_BYTES } from './runtime-config.mjs';
+import { timedFetch } from './http.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -19,22 +20,6 @@ function json(res, status, payload, correlationId) {
   res.end(body);
 }
 
-async function timedFetch(url, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), OUTBOUND_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      const timeout = new Error('outbound_request_timeout');
-      timeout.code = 'TIMEOUT';
-      throw timeout;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 function requireRuntimeConfig() {
   if (!SUPABASE_URL) throw new Error('SUPABASE_URL_required');

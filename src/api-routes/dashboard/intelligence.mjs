@@ -1,5 +1,6 @@
 import { dashboardSessionValid } from './login.mjs';
 import { rankPropertyMatches, rankPropertyOpportunities } from '../../intelligence/scoring.mjs';
+import { timedFetch } from '../../runtime/http.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -13,7 +14,7 @@ function headers() {
 }
 
 async function rows(table, query) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { headers: headers() });
+  const response = await timedFetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { headers: headers() });
   if (!response.ok) throw new Error(`supabase_${table}_${response.status}`);
   return response.json();
 }

@@ -1,6 +1,7 @@
 import { URL } from 'node:url';
 import crypto from 'node:crypto';
 import { dashboardSessionValid } from './login.mjs';
+import { timedFetch } from '../../runtime/http.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -15,7 +16,7 @@ function headers() {
 }
 
 async function sb(path, init = {}) {
-  const response = await fetch(`${SUPABASE_URL}${path}`, { ...init, headers: { ...headers(), ...(init.headers || {}) } });
+  const response = await timedFetch(`${SUPABASE_URL}${path}`, { ...init, headers: { ...headers(), ...(init.headers || {}) } });
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }

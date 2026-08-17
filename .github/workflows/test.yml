@@ -14,5 +14,47 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
       - name: Run unit, contract, and syntax checks
         run: npm run check
+
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Firefox
+        run: npx playwright install --with-deps firefox
+      - name: Run visual and accessibility contract tests
+        run: npm run test:visual
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            artifacts/playwright-report
+            test-results
+          if-no-files-found: ignore
+
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Measure public endpoint performance
+        run: npm run performance:smoke

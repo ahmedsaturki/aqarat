@@ -18,6 +18,29 @@ test('timedFetch passes an abort signal and returns the response', async () => {
   }
 });
 
+test('timedFetch preserves external aborts as bounded abort errors', async () => {
+  const previous = globalThis.fetch;
+  const controller = new AbortController();
+  try {
+    globalThis.fetch = (_url, options) => new Promise((_, reject) => {
+      options.signal.addEventListener('abort', () => {
+        const error = new Error('aborted');
+        error.name = 'AbortError';
+        reject(error);
+      }, { once: true });
+    });
+    const promise = timedFetch('https://example.test', { signal: controller.signal }, 100);
+    controller.abort();
+    await assert.rejects(() => promise, (error) => {
+      assert.equal(error.message, 'outbound_request_aborted');
+      assert.equal(error.code, 'ABORTED');
+      return true;
+    });
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
 test('timedFetch converts an aborted request into a bounded timeout error', async () => {
   const previous = globalThis.fetch;
   try {
