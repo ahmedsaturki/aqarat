@@ -52,6 +52,7 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
       actor_type: 'dashboard_admin', actor_id: 'operator', reason: 'مراجعة يدوية', correlation_id: 'corr-audit-1', created_at: '2026-08-17T10:00:00Z',
     }];
     const propertyRows = [{ id: 'property-1', title: 'فيلا اختبارية', city: 'القاهرة', district: 'المعادي', property_type: 'villa', transaction_type: 'sale', area_m2: 240, price: 5000000, currency: 'EGP', parcel_number: 'P-1', confidence: 0.92, status: 'active' }];
+    const memberRows = [{ id: 'member-1', auth_user_id: '11111111-1111-4111-8111-111111111111', email: 'operator@example.com', role: 'operator', status: 'active', last_sign_in_at: '2026-08-17T09:00:00Z' }];
     const dashboardPayload = (view = 'all') => ({
       ok: true,
       view,
@@ -59,7 +60,8 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
       brand: { brand: 'Aqarat Test' },
       properties: propertyRows,
       audit_events: auditRows,
-      pagination: { audit_events: { limit: 50, offset: 0, returned: auditRows.length, has_more: false, next_offset: null } },
+      members: memberRows,
+      pagination: { audit_events: { limit: 50, offset: 0, returned: auditRows.length, has_more: false, next_offset: null }, members: { limit: 50, offset: 0, returned: memberRows.length, has_more: false, next_offset: null } },
     });
 
     await page.route('**/api/**', async (route) => {
@@ -76,8 +78,9 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
       }
       if (url.pathname.endsWith('/dashboard/action')) {
         const body = route.request().postDataJSON();
-        if (!body.action?.startsWith('property_')) throw new Error(`unexpected action: ${body.action}`);
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, action: body.action }) });
+        if (!body.action?.startsWith('property_') && !body.action?.startsWith('member_')) throw new Error(`unexpected action: ${body.action}`);
+        const result = body.action === 'member_invite' ? { ok: true, action: body.action, invitation_token: 'synthetic-invitation-token' } : { ok: true, action: body.action };
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
         return;
       }
       if (!authenticated && url.pathname.endsWith('/dashboard/data')) {
@@ -114,6 +117,15 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
     await expect(page.locator('#propertyTitle')).toHaveValue('فيلا اختبارية');
     await page.locator('#propertyCancel').click();
     await page.locator('[data-property-archive="property-1"]').evaluate((button) => button.click());
+    await page.locator('[data-view="members"]').evaluate((link) => link.click());
+    await expect(page.locator('h2', { hasText: 'الأعضاء الحاليون' })).toBeVisible();
+    await page.locator('#memberInviteEmail').fill('new@example.com');
+    await page.locator('#memberInviteForm').evaluate((form) => form.requestSubmit());
+    await expect(page.locator('#memberInviteResult')).toContainText('synthetic-invitation-token');
+    await page.locator('[data-member-role="member-1"]').selectOption('analyst');
+    await page.locator('[data-member-save="member-1"]').click();
+    await page.locator('[data-member-revoke="11111111-1111-4111-8111-111111111111"]').click();
+
     await page.locator('[data-view="audit"]').evaluate((link) => link.click());
     await expect(page.locator('h2', { hasText: 'سجل التدقيق' })).toBeVisible();
     await expect(page.locator('tbody tr')).toContainText('dashboard_action');
