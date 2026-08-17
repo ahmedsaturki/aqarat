@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { dashboardSessionActor } from './login.mjs';
 import { timedFetch } from '../../runtime/http.mjs';
-import { requireDashboardPermission, resolveLegacyDashboardAccess } from '../../security/dashboard-rbac.mjs';
+import { requireDashboardPermission } from '../../security/dashboard-rbac.mjs';
+import { resolveDashboardAccess } from '../../security/dashboard-access.mjs';
 import { safeErrorMessage } from '../../runtime/observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -34,7 +34,7 @@ function trustedDashboardOrigin(req) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed' });
-  const access = resolveLegacyDashboardAccess(dashboardSessionActor(req));
+  const access = await resolveDashboardAccess(req);
   if (!access.ok) return json(res, 401, { error: 'dashboard_auth_required' });
   if (!trustedDashboardOrigin(req)) return json(res, 403, { error: 'dashboard_origin_required' });
   if (!SUPABASE_URL || !SERVICE_KEY) return json(res, 503, { error: 'dashboard_config_missing' });
