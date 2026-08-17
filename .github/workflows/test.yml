@@ -19,6 +19,8 @@ jobs:
         run: npm ci
       - name: Run unit, contract, and syntax checks
         run: npm run check
+      - name: Verify backup readiness contract
+        run: npm run verify:backup
 
   visual:
     runs-on: ubuntu-latest
