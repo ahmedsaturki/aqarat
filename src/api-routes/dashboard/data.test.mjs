@@ -6,7 +6,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key';
 process.env.DASHBOARD_ADMIN_SECRET = 'test-dashboard-secret';
 
 const { default: login } = await import('./login.mjs?dashboard-data-test-login');
-const { default: dashboardData } = await import('./data.mjs?dashboard-data-test-data');
+const { default: dashboardData, normalizeDashboardSearch } = await import('./data.mjs?dashboard-data-test-data');
 
 async function dashboardCookie() {
   const response = {
@@ -27,6 +27,12 @@ function responseCapture() {
     json(payload) { this.payload = payload; },
   };
 }
+
+test('normalizes dashboard search input and bounds its length', () => {
+  assert.equal(normalizeDashboardSearch('  مدينة   نصر  '), 'مدينة نصر');
+  assert.equal(normalizeDashboardSearch('hello&or=(secret)<>'), 'hello or secret');
+  assert.equal(normalizeDashboardSearch('x'.repeat(200)).length, 80);
+});
 
 test('returns a bounded dashboard page with navigation metadata', async () => {
   const originalFetch = global.fetch;
@@ -49,6 +55,17 @@ test('returns a bounded dashboard page with navigation metadata', async () => {
     assert.deepEqual(response.payload.pagination.properties, { limit: 2, offset: 4, returned: 2, has_more: true, next_offset: 6 });
     assert.equal(response.payload.correlation_id, 'dashboard-correlation-1');
     assert.match(calls[0], /limit=3&offset=4/);
+
+    const searched = responseCapture();
+    await dashboardData({
+      method: 'GET',
+      query: { view: 'properties', q: 'مدينة نصر' },
+      headers: { cookie: await dashboardCookie() },
+      aqaratCorrelationId: 'dashboard-search-1',
+    }, searched);
+    assert.equal(searched.statusCode, 200);
+    assert.equal(searched.payload.search, 'مدينة نصر');
+    assert.match(calls.at(-1), /or=\(title\.ilike\.[^&]+,city\.ilike\./);
   } finally {
     global.fetch = originalFetch;
   }
