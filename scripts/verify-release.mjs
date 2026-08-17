@@ -1,14 +1,16 @@
 import process from 'node:process';
+import { timedFetch } from '../src/runtime/http.mjs';
 
 const baseUrl = String(process.argv[2] || process.env.AQARAT_RELEASE_URL || '').replace(/\/$/, '');
 const expectedSha = String(process.env.EXPECTED_GIT_SHA || '').trim();
+const requestTimeoutMs = Math.max(1_000, Math.min(30_000, Number(process.env.RELEASE_REQUEST_TIMEOUT_MS || 10_000)));
 
 if (!baseUrl) {
   throw new Error('release_url_required: pass a URL or set AQARAT_RELEASE_URL');
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual', ...options });
+  const response = await timedFetch(`${baseUrl}${path}`, { redirect: 'manual', ...options }, requestTimeoutMs);
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
