@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /api/
+Sitemap: https://aqarat-eg.vercel.app/sitemap.xml
