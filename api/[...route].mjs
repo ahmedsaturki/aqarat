@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { installResponseTelemetry, logStructuredError } from '../src/runtime/observability.mjs';
+import { installResponseTelemetry, logStructuredError, safeErrorMessage } from '../src/runtime/observability.mjs';
 
 const HANDLERS = {
   'healthz': () => import('../src/api-routes/healthz.mjs'),
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
     const module = await load();
     return module.default(req, res);
   } catch (error) {
-    logStructuredError('api_route_error', { route, correlation_id: correlationId, error: error?.message || String(error) });
+    logStructuredError('api_route_error', { route, correlation_id: correlationId, error: safeErrorMessage(error?.message || error) });
     return json(res, 500, { ok: false, error: 'internal_server_error' }, correlationId);
   }
 }

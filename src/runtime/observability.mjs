@@ -6,6 +6,18 @@ function roundDuration(value) {
   return Math.round(value * 100) / 100;
 }
 
+const SENSITIVE_QUERY_RE = /([?&](?:authorization|token|api[_-]?key|secret|password)=)[^&\s]*/giu;
+const BEARER_RE = /\bBearer\s+[A-Za-z0-9._~-]+/giu;
+const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu;
+
+export function safeErrorMessage(error) {
+  return String(error ?? 'unknown_error')
+    .slice(0, 512)
+    .replace(SENSITIVE_QUERY_RE, '$1[REDACTED]')
+    .replace(BEARER_RE, 'Bearer [REDACTED]')
+    .replace(EMAIL_RE, '[EMAIL_REDACTED]');
+}
+
 function writeEvent(level, event, payload) {
   const logger = level === 'error' ? console.error : console.info;
   logger(JSON.stringify({ event, ...payload }));
