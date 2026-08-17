@@ -5,6 +5,9 @@ const COOKIE = 'aqarat_dashboard_session';
 const MAX_AGE = 60 * 60 * 8;
 
 function json(res, status, payload) {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Vary', 'Origin, Sec-Fetch-Site');
   res.status(status).json(payload);
 }
 
@@ -70,6 +73,7 @@ export default async function handler(req, res) {
   }
 
   const password = String(body?.password || '');
+  if (password.length > 512) return json(res, 401, { error: 'invalid_credentials' });
   if (!safeEqual(password, SECRET)) return json(res, 401, { error: 'invalid_credentials' });
 
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(sessionToken())}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${MAX_AGE}`);
