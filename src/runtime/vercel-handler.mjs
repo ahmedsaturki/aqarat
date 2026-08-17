@@ -3,6 +3,7 @@ import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 import { MAX_INTAKE_TEXT_LENGTH } from '../intake/engine.mjs';
 import { MAX_BODY_BYTES } from './runtime-config.mjs';
 import { timedFetch } from './http.mjs';
+import { safeErrorMessage } from './observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -192,7 +193,7 @@ export async function handleIntake(req, res) {
     return json(res, 200, result, correlationId);
   } catch (error) {
     const mapped = productionError(error);
-    console.error(JSON.stringify({ event: 'intake_error', correlation_id: correlationId, error: error.message }));
+    console.error(JSON.stringify({ event: 'intake_error', correlation_id: correlationId, error: safeErrorMessage(error) }));
     return json(res, mapped.status, { ok: false, error: mapped.error }, correlationId);
   }
 }
@@ -211,7 +212,7 @@ export async function handleTelegramUpdate(req, res) {
     return json(res, 200, { ...result, acknowledgement }, correlationId);
   } catch (error) {
     const mapped = productionError(error);
-    console.error(JSON.stringify({ event: 'telegram_intake_error', correlation_id: correlationId, error: error.message }));
+    console.error(JSON.stringify({ event: 'telegram_intake_error', correlation_id: correlationId, error: safeErrorMessage(error) }));
     return json(res, mapped.status, { ok: false, error: mapped.error }, correlationId);
   }
 }
