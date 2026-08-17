@@ -1,5 +1,5 @@
 const DEFAULT_TIMEOUT_MS = 8000;
-const HEALTH_MAX_OUTPUT_TOKENS = 64;
+const HEALTH_MAX_OUTPUT_TOKENS = 256;
 
 function redactError(error) {
   const message = error?.message || String(error);
@@ -82,8 +82,8 @@ async function checkGemini({ apiKey, model, baseUrl }) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: 'You are an Aqarat dependency health checker. Return compact JSON only.' }] },
-        contents: [{ role: 'user', parts: [{ text: 'Return exactly {"ok":true}.' }] }],
+        systemInstruction: { parts: [{ text: 'Return only the requested JSON.' }] },
+        contents: [{ role: 'user', parts: [{ text: 'Return {"ok":true}.' }] }],
         generationConfig: {
           temperature: 0,
           maxOutputTokens: HEALTH_MAX_OUTPUT_TOKENS,
