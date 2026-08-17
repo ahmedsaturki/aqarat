@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 import { MAX_BODY_BYTES } from './runtime-config.mjs';
 import { timedFetch } from './http.mjs';
+import { safeErrorMessage } from './observability.mjs';
 
 const PORT = Number(process.env.PORT || 8787);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -159,7 +160,7 @@ async function handle(req, res) {
     return json(res, 200, { ok: true, intake_event_id: stored.id, result });
   } catch (error) {
     const status = error.status === 401 || error.status === 403 ? 502 : 500;
-    console.error(JSON.stringify({ event: 'intake_error', error: error.message }));
+    console.error(JSON.stringify({ event: 'intake_error', error: safeErrorMessage(error) }));
     return json(res, status, { ok: false, error: status === 502 ? 'upstream_unavailable' : 'internal_error' });
   }
 }

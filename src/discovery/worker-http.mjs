@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { timedFetch } from '../runtime/http.mjs';
+import { safeErrorMessage } from '../runtime/observability.mjs';
 import { fetchPublicSource } from './http-adapter.mjs';
 import { assertDiscoverySourceAllowed } from './source-policy.mjs';
 import { extractCandidates } from './entity-extractor.mjs';
@@ -241,11 +242,11 @@ async function main() {
     const retryable = attempts < Number(job.max_attempts || 5) && !policyError;
     await finish(job, {
       status: retryable ? 'queued' : 'failed',
-      last_error: error.message,
+      last_error: safeErrorMessage(error),
       available_at: retryable ? new Date(Date.now() + Math.min(300000, attempts * 30000)).toISOString() : new Date().toISOString(),
       finished_at: retryable ? null : new Date().toISOString(),
     });
-    console.error(JSON.stringify({ ok: false, job_id: job.id, error: error.message, retryable }));
+    console.error(JSON.stringify({ ok: false, job_id: job.id, error: safeErrorMessage(error), retryable }));
     process.exitCode = 1;
   }
 }

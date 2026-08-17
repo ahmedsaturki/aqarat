@@ -1,4 +1,5 @@
 import { timedFetch } from '../../runtime/http.mjs';
+import { safeErrorMessage } from '../../runtime/observability.mjs';
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
@@ -74,7 +75,7 @@ export default async function handler(req, res) {
       },
     });
   } catch (error) {
-    console.error(JSON.stringify({ event: 'telegram_status_error', error: error.message }));
+    console.error(JSON.stringify({ event: 'telegram_status_error', error: safeErrorMessage(error) }));
     return json(res, 502, { ok: false, error: 'telegram_upstream_unavailable' });
   }
 }
