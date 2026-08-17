@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/dashboard/index.html" },
     { "source": "/dashboard", "destination": "/dashboard/index.html" },
     { "source": "/healthz", "destination": "/api/route?route=healthz" },
     { "source": "/intake", "destination": "/api/route?route=intake" },
