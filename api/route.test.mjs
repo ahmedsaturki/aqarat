@@ -74,3 +74,22 @@ test('catch-all router preserves internal Vercel rewrite route selection', async
   assert.equal(payload.ok, true);
   assert.equal(payload.service, 'aqarat-intake');
 });
+
+test('catch-all router accepts only the route mapped to a rewritten source pathname', async () => {
+  const response = responseCapture();
+  await handler({ url: '/healthz?route=healthz', headers: {} }, response);
+
+  const payload = JSON.parse(response.body);
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.service, 'aqarat-intake');
+});
+
+test('catch-all router rejects a mismatched rewrite route instead of loading another handler', async () => {
+  const response = responseCapture();
+  await handler({ url: '/healthz?route=dashboard/data', headers: {} }, response);
+
+  const payload = JSON.parse(response.body);
+  assert.equal(response.statusCode, 404);
+  assert.equal(payload.error, 'route_not_found');
+});
