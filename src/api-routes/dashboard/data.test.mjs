@@ -71,6 +71,31 @@ test('returns a bounded dashboard page with navigation metadata', async () => {
   }
 });
 
+test('audit view requests safe explorer fields without internal state snapshots', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url) => {
+    calls.push(String(url));
+    return { ok: true, async json() { return [{ id: 'audit-1', event_type: 'dashboard_action', reason: 'reviewed' }]; } };
+  };
+  try {
+    const response = responseCapture();
+    await dashboardData({
+      method: 'GET',
+      query: { view: 'audit', limit: '10' },
+      headers: { cookie: await dashboardCookie() },
+      aqaratCorrelationId: 'dashboard-audit-1',
+    }, response);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.payload.audit_events, [{ id: 'audit-1', event_type: 'dashboard_action', reason: 'reviewed' }]);
+    assert.match(calls[0], /select=id,event_type,entity_type,entity_id,actor_type,actor_id,correlation_id,reason,payload,created_at/);
+    assert.equal(calls[0].includes('before_state'), false);
+    assert.equal(calls[0].includes('after_state'), false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('returns a retryable correlated error without upstream details', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => ({ ok: false, status: 503, async json() { return { secret: 'must-not-leak' }; } });
