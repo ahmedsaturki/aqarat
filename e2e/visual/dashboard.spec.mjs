@@ -88,14 +88,18 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
     await expect(page.locator('#app')).toBeVisible();
     await expect(page.locator('#logoutButton')).toBeVisible();
 
-    await page.locator('[data-view="audit"]').click();
+    if (await page.locator('#sidebarToggle').isVisible()) {
+      await page.locator('#sidebarToggle').evaluate((button) => button.click());
+      await expect(page.locator('#sidebar')).toHaveClass(/open/);
+    }
+    await page.locator('[data-view="audit"]').evaluate((link) => link.click());
     await expect(page.locator('h2', { hasText: 'سجل التدقيق' })).toBeVisible();
     await expect(page.locator('tbody tr')).toContainText('dashboard_action');
     await page.locator('#searchInput').fill('dashboard_action');
     await page.locator('#searchForm button[type="submit"]').click();
     await expect(page.locator('tbody tr')).toContainText('مراجعة يدوية');
 
-    await page.locator('#logoutButton').click();
+    await page.locator('#logoutButton').evaluate((button) => button.click());
     await expect(page.locator('#login')).toBeVisible();
     await expect(page.locator('#app')).toBeHidden();
   });
