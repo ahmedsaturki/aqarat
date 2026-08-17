@@ -54,3 +54,23 @@ test('catch-all router rejects unallowlisted routes without loading arbitrary mo
   });
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
 });
+
+test('catch-all router does not let query route override a real API pathname', async () => {
+  const response = responseCapture();
+  await handler({ url: '/api/healthz?route=dashboard/data', headers: {} }, response);
+
+  const payload = JSON.parse(response.body);
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.service, 'aqarat-intake');
+});
+
+test('catch-all router preserves internal Vercel rewrite route selection', async () => {
+  const response = responseCapture();
+  await handler({ url: '/api/route?route=healthz', headers: {} }, response);
+
+  const payload = JSON.parse(response.body);
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.service, 'aqarat-intake');
+});

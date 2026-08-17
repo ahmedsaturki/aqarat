@@ -49,9 +49,14 @@ function json(res, status, payload, correlationId) {
 
 function routeFromRequest(req) {
   const url = new URL(req.url || '/', 'http://localhost');
-  const explicitRoute = url.searchParams.get('route');
-  if (explicitRoute) return explicitRoute.replace(/^\/api\//, '').replace(/\/+$/, '');
-  return url.pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
+  const pathname = url.pathname.replace(/\/+$/, '') || '/';
+  // Vercel rewrites intentionally target /api/route?route=...; never let a
+  // query parameter override the handler selected by a real API pathname.
+  if (pathname === '/api/route') {
+    const explicitRoute = url.searchParams.get('route');
+    if (explicitRoute) return explicitRoute.replace(/^\/api\//, '').replace(/\/+$/, '');
+  }
+  return pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
 }
 
 export default async function handler(req, res) {
