@@ -6,6 +6,7 @@
     "test": "node --test",
     "check:syntax": "find src api scripts test -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check",
     "check": "npm test && npm run check:syntax",
+    "verify": "npm test && npm run check:syntax && npm run verify:backup && npm run verify:redaction && npm run verify:public-seo",
     "start:intake": "node src/runtime/intake-api.mjs",
     "verify:release": "node scripts/verify-release.mjs",
     "verify:backup": "node scripts/verify-backup-readiness.mjs",
