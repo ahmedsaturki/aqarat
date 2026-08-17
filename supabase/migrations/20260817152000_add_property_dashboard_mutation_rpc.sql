@@ -8,6 +8,10 @@ begin
   if p_value !~ '^[0-9]+(\\.[0-9]{1,2})?$' then
     raise exception using errcode = '22023', message = p_field || '_invalid';
   end if;
+  if (p_field = 'area_m2' and p_value::numeric > 1000000)
+     or (p_field = 'price' and p_value::numeric > 1000000000000) then
+    raise exception using errcode = '22023', message = p_field || '_invalid';
+  end if;
   return p_value::numeric;
 end;
 $$;
@@ -19,7 +23,7 @@ immutable
 as $$
 begin
   if p_value is null or btrim(p_value) = '' then return null; end if;
-  if p_value !~ '^[0-9]+$' then
+  if p_value !~ '^[0-9]+$' or p_value::integer > 100 then
     raise exception using errcode = '22023', message = p_field || '_invalid';
   end if;
   return p_value::integer;
@@ -72,6 +76,7 @@ begin
     if coalesce(nullif(btrim(p_changes->>'city'), ''), '') = '' then raise exception using errcode = '22023', message = 'city_required'; end if;
     if coalesce(nullif(btrim(p_changes->>'transaction_type'), ''), '') = '' then raise exception using errcode = '22023', message = 'transaction_type_required'; end if;
     if p_changes->>'transaction_type' not in ('sale','rent','both','unknown') then raise exception using errcode = '22023', message = 'transaction_type_invalid'; end if;
+    if coalesce(p_changes->>'status', 'active') not in ('active','inactive','sold','rented','archived','unknown') then raise exception using errcode = '22023', message = 'status_invalid'; end if;
     insert into public.properties (
       property_type, transaction_type, status, title, description, city, district, neighborhood, address,
       area_m2, bedrooms, bathrooms, floor, finishing, price, currency, features
@@ -94,6 +99,8 @@ begin
     if not found then raise exception using errcode = 'P0002', message = 'property_not_found'; end if;
   else
     if p_property_id is null then raise exception using errcode = '22023', message = 'property_id_required'; end if;
+    if p_changes ? 'transaction_type' and p_changes->>'transaction_type' not in ('sale','rent','both','unknown') then raise exception using errcode = '22023', message = 'transaction_type_invalid'; end if;
+    if p_changes ? 'status' and p_changes->>'status' not in ('active','inactive','sold','rented','archived','unknown') then raise exception using errcode = '22023', message = 'status_invalid'; end if;
     update public.properties set
       property_type = case when p_changes ? 'property_type' then nullif(btrim(p_changes->>'property_type'), '') else property_type end,
       transaction_type = case when p_changes ? 'transaction_type' then (p_changes->>'transaction_type')::public.property_transaction_type else transaction_type end,
