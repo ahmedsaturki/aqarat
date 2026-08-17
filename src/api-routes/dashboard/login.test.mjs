@@ -6,6 +6,11 @@ import {
   trustedDashboardOrigin,
 } from './login.mjs';
 
+function responseMock() {
+  const headers = {};
+  return { headers, setHeader(name, value) { headers[name] = value; }, status() { return this; }, json(payload) { this.payload = payload; } };
+}
+
 test('dashboard login accepts same-origin and non-browser requests', () => {
   const previous = process.env.PUBLIC_BASE_URL;
   process.env.PUBLIC_BASE_URL = 'https://aqarat-eg.vercel.app';
@@ -27,6 +32,44 @@ test('dashboard login rejects cross-origin browser requests', () => {
   } finally {
     if (previous === undefined) delete process.env.PUBLIC_BASE_URL;
     else process.env.PUBLIC_BASE_URL = previous;
+  }
+});
+
+test('dashboard login responses are not cacheable and vary by browser origin headers', async () => {
+  const previousSecret = process.env.DASHBOARD_ADMIN_SECRET;
+  const previousBase = process.env.PUBLIC_BASE_URL;
+  process.env.DASHBOARD_ADMIN_SECRET = 'test-secret';
+  process.env.PUBLIC_BASE_URL = 'https://aqarat-eg.vercel.app';
+  try {
+    const { default: handler } = await import(`./login.mjs?cache_headers=${Date.now()}`);
+    const res = responseMock();
+    await handler({ method: 'POST', headers: { origin: 'https://evil.example' }, body: { password: 'x' } }, res);
+    assert.equal(res.headers['Cache-Control'], 'no-store');
+    assert.equal(res.headers.Pragma, 'no-cache');
+    assert.equal(res.headers.Vary, 'Origin, Sec-Fetch-Site');
+  } finally {
+    if (previousSecret === undefined) delete process.env.DASHBOARD_ADMIN_SECRET;
+    else process.env.DASHBOARD_ADMIN_SECRET = previousSecret;
+    if (previousBase === undefined) delete process.env.PUBLIC_BASE_URL;
+    else process.env.PUBLIC_BASE_URL = previousBase;
+  }
+});
+
+test('dashboard login rejects oversized passwords before secret comparison', async () => {
+  const previousSecret = process.env.DASHBOARD_ADMIN_SECRET;
+  const previousBase = process.env.PUBLIC_BASE_URL;
+  process.env.DASHBOARD_ADMIN_SECRET = 'test-secret';
+  process.env.PUBLIC_BASE_URL = 'https://aqarat-eg.vercel.app';
+  try {
+    const { default: handler } = await import(`./login.mjs?oversized=${Date.now()}`);
+    const res = responseMock();
+    await handler({ method: 'POST', headers: { origin: 'https://aqarat-eg.vercel.app' }, body: { password: 'x'.repeat(513) } }, res);
+    assert.equal(res.payload.error, 'invalid_credentials');
+  } finally {
+    if (previousSecret === undefined) delete process.env.DASHBOARD_ADMIN_SECRET;
+    else process.env.DASHBOARD_ADMIN_SECRET = previousSecret;
+    if (previousBase === undefined) delete process.env.PUBLIC_BASE_URL;
+    else process.env.PUBLIC_BASE_URL = previousBase;
   }
 });
 
