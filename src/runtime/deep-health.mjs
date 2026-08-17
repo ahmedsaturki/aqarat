@@ -1,4 +1,5 @@
 const DEFAULT_TIMEOUT_MS = 8000;
+const HEALTH_MAX_OUTPUT_TOKENS = 64;
 
 function redactError(error) {
   const message = error?.message || String(error);
@@ -75,7 +76,7 @@ async function checkGemini({ apiKey, model, baseUrl }) {
         contents: [{ role: 'user', parts: [{ text: 'Return exactly {"ok":true}.' }] }],
         generationConfig: {
           temperature: 0,
-          maxOutputTokens: 16,
+          maxOutputTokens: HEALTH_MAX_OUTPUT_TOKENS,
           responseMimeType: 'application/json',
           responseSchema: {
             type: 'object',
@@ -90,9 +91,11 @@ async function checkGemini({ apiKey, model, baseUrl }) {
     const parts = payload?.candidates?.[0]?.content?.parts;
     const text = Array.isArray(parts) ? parts.map((part) => part?.text || '').join('') : '';
     const finishReason = payload?.candidates?.[0]?.finishReason || null;
-    return text
+    let parsed = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = null; }
+    return parsed?.ok === true
       ? { status: 'ok', model, response_chars: text.length }
-      : { status: 'degraded', model, response_chars: 0, finish_reason: finishReason };
+      : { status: 'degraded', model, response_chars: text.length, finish_reason: finishReason, error: 'unexpected_response' };
   } catch (error) {
     return { status: 'error', error: redactError(error) };
   }
