@@ -54,6 +54,25 @@ const publicConfig = await request('/api/public-config');
 if (publicConfig.status !== 200 || !publicConfig.body || 'supabase_url' in publicConfig.body || 'api_key' in publicConfig.body) {
   throw new Error(`public_config_contract_failed:${publicConfig.status}`);
 }
+const publicConfigKeys = Object.keys(publicConfig.body).sort().join(',');
+if (publicConfigKeys !== 'brand,phone,public_price_policy,website,whatsapp') {
+  throw new Error(`public_config_allowlist_failed:${publicConfigKeys}`);
+}
+
+const root = await request('/');
+if (root.status !== 200 || !String(root.headers['content-type'] || '').startsWith('text/html')) {
+  throw new Error(`public_root_failed:${root.status}`);
+}
+const robots = await request('/robots.txt');
+if (robots.status !== 200 || !String(robots.headers['content-type'] || '').startsWith('text/plain') || !String(robots.body || '').includes('Disallow: /dashboard')) {
+  throw new Error(`robots_contract_failed:${robots.status}`);
+}
+const sitemap = await request('/sitemap.xml');
+if (sitemap.status !== 200 || !String(sitemap.headers['content-type'] || '').includes('xml') || !String(sitemap.body || '').includes('<loc>https://aqarat-eg.vercel.app/</loc>')) {
+  throw new Error(`sitemap_contract_failed:${sitemap.status}`);
+}
+const dashboard = await request('/api/dashboard/data');
+if (dashboard.status !== 401) throw new Error(`dashboard_not_protected:${dashboard.status}`);
 
 console.log(JSON.stringify({
   ok: true,
@@ -64,5 +83,9 @@ console.log(JSON.stringify({
     telegram_unauthorized: telegram.status,
     intake_unauthorized: intake.status,
     public_config: publicConfig.status,
+    public_root: root.status,
+    robots: robots.status,
+    sitemap: sitemap.status,
+    dashboard_unauthorized: dashboard.status,
   },
 }));
