@@ -10,6 +10,7 @@
     "verify:release": "node scripts/verify-release.mjs",
     "verify:backup": "node scripts/verify-backup-readiness.mjs",
     "verify:redaction": "node scripts/verify-error-redaction.mjs",
+    "verify:public-seo": "node scripts/verify-public-seo.mjs",
     "test:visual": "playwright test",
     "performance:smoke": "node scripts/performance-smoke.mjs"
   },
