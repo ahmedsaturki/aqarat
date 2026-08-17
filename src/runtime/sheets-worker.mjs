@@ -1,5 +1,6 @@
 import { buildSheetsProjection } from '../workers/sheets-worker.mjs';
 import { timedFetch } from './http.mjs';
+import { safeErrorMessage } from './observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -180,7 +181,7 @@ export async function processOneSheetsJob(workerId = 'vercel-sheets-worker') {
 
     return { processed: true, job_id: job.id, property_id: propertyId, result: transportResult ?? null };
   } catch (error) {
-    const message = error?.message || 'sheets_projection_failed';
+    const message = safeErrorMessage(error || 'sheets_projection_failed');
     const permanent = error?.code === 'CONFIG_MISSING';
     const terminal = permanent || Number(job.attempts || 0) >= Number(job.max_attempts || 5);
     const now = new Date().toISOString();
@@ -218,7 +219,7 @@ export async function processSheetsJobs(maxJobs = 3, workerId = 'vercel-sheets-w
   try {
     await requeueExpiredJobs();
   } catch (error) {
-    console.warn(JSON.stringify({ event: 'sheets_worker_requeue_failed', error: error?.message || 'maintenance_failed' }));
+    console.warn(JSON.stringify({ event: 'sheets_worker_requeue_failed', error: safeErrorMessage(error || 'maintenance_failed') }));
   }
   const results = [];
   for (let i = 0; i < Math.max(1, Math.min(Number(maxJobs) || 1, 10)); i += 1) {

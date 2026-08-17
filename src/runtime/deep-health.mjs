@@ -1,14 +1,11 @@
+import { safeErrorMessage } from './observability.mjs';
+
 const DEFAULT_TIMEOUT_MS = 8000;
+
 const HEALTH_MAX_OUTPUT_TOKENS = 256;
 const DEFAULT_GEMINI_HEALTH_PROBE = 'metadata';
 
-function redactError(error) {
-  const message = error?.message || String(error);
-  return message
-    .replace(/key=[^\s&]+/gi, 'key=[redacted]')
-    .replace(/Bearer\s+[^\s]+/gi, 'Bearer [redacted]')
-    .slice(0, 240);
-}
+const redactError = safeErrorMessage;
 
 async function timedFetch(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const controller = new AbortController();
