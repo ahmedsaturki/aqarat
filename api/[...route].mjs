@@ -14,6 +14,7 @@ const HANDLERS = {
   'dashboard/discovery-submit': () => import('../src/api-routes/dashboard/discovery-submit.mjs'),
   'dashboard/intelligence': () => import('../src/api-routes/dashboard/intelligence.mjs'),
   'dashboard/login': () => import('../src/api-routes/dashboard/login.mjs'),
+  'dashboard/logout': () => import('../src/api-routes/dashboard/logout.mjs'),
   'dashboard/overview': () => import('../src/api-routes/dashboard/overview.mjs'),
 };
 

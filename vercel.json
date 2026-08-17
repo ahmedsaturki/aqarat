@@ -12,6 +12,7 @@
     { "source": "/api/dashboard/discovery-submit", "destination": "/api/route?route=dashboard/discovery-submit" },
     { "source": "/api/dashboard/intelligence", "destination": "/api/route?route=dashboard/intelligence" },
     { "source": "/api/dashboard/login", "destination": "/api/route?route=dashboard/login" },
+    { "source": "/api/dashboard/logout", "destination": "/api/route?route=dashboard/logout" },
     { "source": "/api/dashboard/overview", "destination": "/api/route?route=dashboard/overview" }
   ]
 }
