@@ -10,6 +10,15 @@ const TABLES = new Set([
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
 const MAX_OFFSET = 1_000_000;
+const SEARCH_FIELDS = {
+  properties: ['title', 'city', 'district', 'property_type', 'transaction_type', 'parcel_number'],
+  leads: ['intent', 'source', 'status'],
+  discovery: ['name', 'key', 'source_type', 'policy_mode'],
+  content: ['title', 'channel', 'status', 'language'],
+  review: ['object_type', 'queue_type', 'status', 'decision'],
+  jobs: ['job_type', 'status'],
+  publications: ['channel', 'destination', 'status'],
+};
 
 function correlationId(req) {
   const value = String(req?.aqaratCorrelationId || '').trim();
@@ -36,6 +45,23 @@ function queryValue(req, name) {
 function boundedInteger(value, fallback, minimum, maximum) {
   const parsed = Number(value);
   return Number.isInteger(parsed) ? Math.min(Math.max(parsed, minimum), maximum) : fallback;
+}
+
+export function normalizeDashboardSearch(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}\s._-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+}
+
+function searchFilter(view, value) {
+  const term = normalizeDashboardSearch(value);
+  const fields = SEARCH_FIELDS[view];
+  if (!term || !fields) return { term, filter: '' };
+  const encoded = encodeURIComponent(term);
+  return { term, filter: `&or=(${fields.map((field) => `${field}.ilike.*${encoded}*`).join(',')})` };
 }
 
 async function rows(table, query, page) {
@@ -79,6 +105,7 @@ export default async function handler(req, res) {
   const view = String(queryValue(req, 'view') || 'all');
   const limit = boundedInteger(queryValue(req, 'limit'), DEFAULT_LIMIT, 1, MAX_LIMIT);
   const offset = boundedInteger(queryValue(req, 'offset'), 0, 0, MAX_OFFSET);
+  const { term: search, filter } = searchFilter(view, queryValue(req, 'q'));
   const pagination = {};
   const page = { limit, offset };
   const readPage = async (table, query, key = table) => {
@@ -103,19 +130,19 @@ export default async function handler(req, res) {
     }
 
     const payload = {};
-    if (view === 'all' || view === 'properties') payload.properties = await readPage('properties', 'select=id,title,city,district,property_type,transaction_type,area_m2,price,currency,confidence,status,parcel_number,canonical_key,updated_at&order=updated_at.desc');
-    if (view === 'all' || view === 'leads') payload.leads = await readPage('leads', 'select=id,person_id,property_id,intent,source,score,status,created_at,updated_at&order=updated_at.desc');
+    if (view === 'all' || view === 'properties') payload.properties = await readPage('properties', `select=id,title,city,district,property_type,transaction_type,area_m2,price,currency,confidence,status,parcel_number,canonical_key,updated_at&order=updated_at.desc${view === 'properties' ? filter : ''}`);
+    if (view === 'all' || view === 'leads') payload.leads = await readPage('leads', `select=id,person_id,property_id,intent,source,score,status,created_at,updated_at&order=updated_at.desc${view === 'leads' ? filter : ''}`);
     if (view === 'all' || view === 'discovery') {
-      payload.discovery_sources = await readPage('discovery_sources', 'select=id,key,name,base_url,source_type,enabled,policy_mode,updated_at&order=name.asc');
+      payload.discovery_sources = await readPage('discovery_sources', `select=id,key,name,base_url,source_type,enabled,policy_mode,updated_at&order=name.asc${view === 'discovery' ? filter : ''}`);
       payload.discovery_runs = await readPage('discovery_runs', 'select=id,source_id,status,query,city,country,started_at,finished_at,stats,error_message,created_at&order=created_at.desc');
     }
-    if (view === 'all' || view === 'review') payload.review_queue = await readPage('review_queue', 'select=id,object_type,object_id,queue_type,status,priority,decision,created_at,reviewed_at&order=priority.desc,created_at.asc');
+    if (view === 'all' || view === 'review') payload.review_queue = await readPage('review_queue', `select=id,object_type,object_id,queue_type,status,priority,decision,created_at,reviewed_at&order=priority.desc,created_at.asc${view === 'review' ? filter : ''}`);
     if (view === 'all' || view === 'content') {
-      payload.content_items = await readPage('content_items', 'select=id,property_id,audience,channel,language,title,status,ai_model,prompt_version,quality_score,created_at,updated_at&order=updated_at.desc');
+      payload.content_items = await readPage('content_items', `select=id,property_id,audience,channel,language,title,status,ai_model,prompt_version,quality_score,created_at,updated_at&order=updated_at.desc${view === 'content' ? filter : ''}`);
       payload.content_variants = await readPage('content_variants', 'select=id,content_item_id,channel,locale,variant_type,status,created_at,updated_at&order=updated_at.desc');
     }
-    if (view === 'all' || view === 'publications') payload.publication_jobs = await readPage('publication_jobs', 'select=id,content_variant_id,channel,destination,status,requires_human,attempts,max_attempts,last_error,available_at,started_at,finished_at,created_at&order=created_at.desc');
-    if (view === 'all' || view === 'jobs') payload.jobs = await readPage('jobs', 'select=id,job_type,status,priority,attempts,max_attempts,available_at,started_at,finished_at,error_message,created_at,updated_at&order=updated_at.desc');
+    if (view === 'all' || view === 'publications') payload.publication_jobs = await readPage('publication_jobs', `select=id,content_variant_id,channel,destination,status,requires_human,attempts,max_attempts,last_error,available_at,started_at,finished_at,created_at&order=created_at.desc${view === 'publications' ? filter : ''}`);
+    if (view === 'all' || view === 'jobs') payload.jobs = await readPage('jobs', `select=id,job_type,status,priority,attempts,max_attempts,available_at,started_at,finished_at,error_message,created_at,updated_at&order=updated_at.desc${view === 'jobs' ? filter : ''}`);
     if (view === 'all' || view === 'insights') {
       const [performance, experiments, interests, interactions] = await Promise.all([
         readPage('content_performance', 'select=id,content_variant_id,channel,impressions,views,replies,qualified_inquiries,conversions,last_observed_at&order=last_observed_at.desc'),
@@ -130,11 +157,11 @@ export default async function handler(req, res) {
     }
     if (view === 'all' || view === 'audit') payload.audit_events = await readPage('audit_events', 'select=id,event_type,entity_type,entity_id,actor_type,actor_id,correlation_id,created_at&order=created_at.desc');
 
-    const response = { ok: true, generated_at: new Date().toISOString(), view, limit, offset, pagination, ...payload };
+    const response = { ok: true, generated_at: new Date().toISOString(), view, limit, offset, search: search || null, pagination, ...payload };
     console.info(JSON.stringify({ event: 'dashboard_data_completed', view, limit, offset, duration_ms: Date.now() - startedAt, correlation_id: requestCorrelationId }));
     return json(res, 200, response, requestCorrelationId);
   } catch (error) {
-    console.error(JSON.stringify({ event: 'dashboard_data_error', view, limit, offset, duration_ms: Date.now() - startedAt, correlation_id: requestCorrelationId, error: error.message }));
+    console.error(JSON.stringify({ event: 'dashboard_data_error', view, limit, offset, search: search || null, duration_ms: Date.now() - startedAt, correlation_id: requestCorrelationId, error: error.message }));
     return json(res, 500, { error: 'dashboard_data_failed', retryable: true }, requestCorrelationId);
   }
 }
