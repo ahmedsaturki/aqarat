@@ -47,16 +47,39 @@ function json(res, status, payload, correlationId) {
   res.end(body);
 }
 
+const REWRITE_ROUTE_BY_SOURCE = {
+  '/healthz': 'healthz',
+  '/intake': 'intake',
+  '/telegram/update': 'telegram/update',
+  '/api/healthz/deep': 'healthz/deep',
+  '/api/jobs/sheets': 'jobs/sheets',
+  '/api/telegram/status': 'telegram/status',
+  '/api/telegram/update': 'telegram/update',
+  '/api/dashboard/action': 'dashboard/action',
+  '/api/dashboard/data': 'dashboard/data',
+  '/api/dashboard/discovery-submit': 'dashboard/discovery-submit',
+  '/api/dashboard/intelligence': 'dashboard/intelligence',
+  '/api/dashboard/login': 'dashboard/login',
+  '/api/dashboard/logout': 'dashboard/logout',
+  '/api/dashboard/overview': 'dashboard/overview',
+};
+
+function normalizeRoute(value) {
+  return String(value || '').replace(/^\/api\//, '').replace(/\/+$/, '');
+}
+
 function routeFromRequest(req) {
   const url = new URL(req.url || '/', 'http://localhost');
   const pathname = url.pathname.replace(/\/+$/, '') || '/';
-  // Vercel rewrites intentionally target /api/route?route=...; never let a
-  // query parameter override the handler selected by a real API pathname.
-  if (pathname === '/api/route') {
-    const explicitRoute = url.searchParams.get('route');
-    if (explicitRoute) return explicitRoute.replace(/^\/api\//, '').replace(/\/+$/, '');
-  }
-  return pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
+  const explicitRoute = normalizeRoute(url.searchParams.get('route'));
+  // Vercel rewrites may preserve the public source pathname while adding
+  // route=...; accept only the exact source-to-handler mapping. A real API
+  // pathname can never be redirected to an unrelated handler by query input.
+  if (explicitRoute && (
+    pathname === '/api/route'
+    || REWRITE_ROUTE_BY_SOURCE[pathname] === explicitRoute
+  )) return explicitRoute;
+  return normalizeRoute(pathname);
 }
 
 export default async function handler(req, res) {
