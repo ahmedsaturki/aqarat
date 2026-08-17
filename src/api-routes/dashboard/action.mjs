@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { dashboardSessionActor } from './login.mjs';
 import { timedFetch } from '../../runtime/http.mjs';
+import { safeErrorMessage } from '../../runtime/observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -57,7 +58,7 @@ export default async function handler(req, res) {
     if (!result?.ok) return json(res, 409, result || { error: 'dashboard_action_rejected' });
     return json(res, 200, result);
   } catch (error) {
-    console.error(JSON.stringify({ event: 'dashboard_action_error', action, id, error: error.message }));
+    console.error(JSON.stringify({ event: 'dashboard_action_error', action, id, error: safeErrorMessage(error) }));
     const status = error.status === 400 ? 409 : 500;
     return json(res, status, { error: 'dashboard_action_failed' });
   }
