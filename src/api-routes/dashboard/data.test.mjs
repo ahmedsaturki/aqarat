@@ -107,6 +107,32 @@ test('audit view requests safe explorer fields without internal state snapshots'
   }
 });
 
+test('redacts and bounds dashboard error telemetry', async () => {
+  const originalFetch = global.fetch;
+  const originalError = console.error;
+  const logs = [];
+  global.fetch = async () => { throw new Error(`provider failed https://api.test/?token=secret-token user@example.com ${'x'.repeat(700)}`); };
+  console.error = (line) => logs.push(String(line));
+  try {
+    const response = responseCapture();
+    await dashboardData({
+      method: 'GET',
+      query: { view: 'properties' },
+      headers: { cookie: await dashboardCookie() },
+      aqaratCorrelationId: 'dashboard-error-redaction-1',
+    }, response);
+    assert.equal(response.statusCode, 500);
+    const event = JSON.parse(logs.at(-1));
+    assert.equal(event.event, 'dashboard_data_error');
+    assert.equal(event.error.includes('secret-token'), false);
+    assert.equal(event.error.includes('user@example.com'), false);
+    assert.ok(event.error.length <= 512);
+  } finally {
+    console.error = originalError;
+    global.fetch = originalFetch;
+  }
+});
+
 test('returns a retryable correlated error without upstream details', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => ({ ok: false, status: 503, async json() { return { secret: 'must-not-leak' }; } });

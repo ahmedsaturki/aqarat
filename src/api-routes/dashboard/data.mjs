@@ -1,5 +1,6 @@
 import { dashboardSessionValid } from './login.mjs';
 import { timedFetch } from '../../runtime/http.mjs';
+import { safeErrorMessage } from '../../runtime/observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -162,7 +163,7 @@ export default async function handler(req, res) {
     console.info(JSON.stringify({ event: 'dashboard_data_completed', view, limit, offset, duration_ms: Date.now() - startedAt, correlation_id: requestCorrelationId }));
     return json(res, 200, response, requestCorrelationId);
   } catch (error) {
-    console.error(JSON.stringify({ event: 'dashboard_data_error', view, limit, offset, search: search || null, duration_ms: Date.now() - startedAt, correlation_id: requestCorrelationId, error: error.message }));
+    console.error(JSON.stringify({ event: 'dashboard_data_error', view, limit, offset, search: search || null, duration_ms: Date.now() - startedAt, correlation_id: requestCorrelationId, error: safeErrorMessage(error) }));
     return json(res, 500, { error: 'dashboard_data_failed', retryable: true }, requestCorrelationId);
   }
 }
