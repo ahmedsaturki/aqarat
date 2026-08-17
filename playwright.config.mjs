@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.BASE_URL || 'https://aqarat-eg.vercel.app';
+const baseURL = process.env.BASE_URL || 'http://127.0.0.1:4173';
 
 export default defineConfig({
   testDir: './e2e/visual',
@@ -18,6 +18,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['line'], ['html', { outputFolder: 'artifacts/playwright-report', open: 'never' }]] : 'list',
+  webServer: {
+    command: 'node scripts/visual-server.mjs',
+    url: 'http://127.0.0.1:4173/dashboard/',
+    reuseExistingServer: !process.env.CI,
+  },
   use: {
     baseURL,
     browserName: 'firefox',
