@@ -51,11 +51,13 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
       id: 'audit-1', event_type: 'dashboard_action', entity_type: 'review_queue', entity_id: 'review-1',
       actor_type: 'dashboard_admin', actor_id: 'operator', reason: 'مراجعة يدوية', correlation_id: 'corr-audit-1', created_at: '2026-08-17T10:00:00Z',
     }];
+    const propertyRows = [{ id: 'property-1', title: 'فيلا اختبارية', city: 'القاهرة', district: 'المعادي', property_type: 'villa', transaction_type: 'sale', area_m2: 240, price: 5000000, currency: 'EGP', parcel_number: 'P-1', confidence: 0.92, status: 'active' }];
     const dashboardPayload = (view = 'all') => ({
       ok: true,
       view,
       metrics: { properties: 1, leads: 1 },
       brand: { brand: 'Aqarat Test' },
+      properties: propertyRows,
       audit_events: auditRows,
       pagination: { audit_events: { limit: 50, offset: 0, returned: auditRows.length, has_more: false, next_offset: null } },
     });
@@ -70,6 +72,12 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
       if (url.pathname.endsWith('/dashboard/logout')) {
         authenticated = false;
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+        return;
+      }
+      if (url.pathname.endsWith('/dashboard/action')) {
+        const body = route.request().postDataJSON();
+        if (!body.action?.startsWith('property_')) throw new Error(`unexpected action: ${body.action}`);
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, action: body.action }) });
         return;
       }
       if (!authenticated && url.pathname.endsWith('/dashboard/data')) {
@@ -92,6 +100,20 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
       await page.locator('#sidebarToggle').evaluate((button) => button.click());
       await expect(page.locator('#sidebar')).toHaveClass(/open/);
     }
+    await page.locator('[data-view="properties"]').evaluate((link) => link.click());
+    await expect(page.locator('h2', { hasText: 'العقارات' })).toBeVisible();
+    await page.locator('#primaryAction').click();
+    await expect(page.locator('#propertyModal')).toBeVisible();
+    await page.locator('#propertyTitle').fill('عقار جديد من الواجهة');
+    await page.locator('#propertyCity').fill('الإسكندرية');
+    await page.locator('#propertyType').fill('apartment');
+    await page.locator('#propertyArea').fill('120');
+    await page.locator('#propertyForm').evaluate((form) => form.requestSubmit());
+    await expect(page.locator('#propertyModal')).toBeHidden();
+    await page.locator('[data-property-edit="property-1"]').click();
+    await expect(page.locator('#propertyTitle')).toHaveValue('فيلا اختبارية');
+    await page.locator('#propertyCancel').click();
+    await page.locator('[data-property-archive="property-1"]').evaluate((button) => button.click());
     await page.locator('[data-view="audit"]').evaluate((link) => link.click());
     await expect(page.locator('h2', { hasText: 'سجل التدقيق' })).toBeVisible();
     await expect(page.locator('tbody tr')).toContainText('dashboard_action');
