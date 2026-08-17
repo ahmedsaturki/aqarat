@@ -1,5 +1,6 @@
 import { dashboardSessionValid } from './login.mjs';
 import { timedFetch } from '../../runtime/http.mjs';
+import { safeErrorMessage } from '../../runtime/observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -68,7 +69,7 @@ export default async function handler(req, res) {
       },
     });
   } catch (error) {
-    console.error(JSON.stringify({ event: 'dashboard_overview_error', error: error.message }));
+    console.error(JSON.stringify({ event: 'dashboard_overview_error', error: safeErrorMessage(error) }));
     return json(res, 500, { error: 'dashboard_overview_failed' });
   }
 }
