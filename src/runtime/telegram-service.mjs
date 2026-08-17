@@ -1,6 +1,7 @@
 import { telegramUpdateToIntakeEvent } from '../adapters/telegram.mjs';
 import { MAX_BODY_BYTES } from './runtime-config.mjs';
 import { timedFetch } from './http.mjs';
+import { safeErrorMessage } from './observability.mjs';
 
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -117,7 +118,7 @@ export async function processTelegramUpdate(payload, headers = {}) {
       });
       acknowledgement = { sent: true };
     } catch (error) {
-      acknowledgement = { sent: false, error: error.message };
+      acknowledgement = { sent: false, error: safeErrorMessage(error) };
     }
   }
 
@@ -149,7 +150,7 @@ export async function getTelegramStatus({ autoRegister = true, webhookUrl } = {}
     url: webhook?.result?.url ?? '',
     pending_update_count: webhook?.result?.pending_update_count ?? 0,
     last_error_date: webhook?.result?.last_error_date ?? null,
-    last_error_message: webhook?.result?.last_error_message ?? null,
+    last_error_message: webhook?.result?.last_error_message ? safeErrorMessage(webhook.result.last_error_message) : null,
   };
 
   if (autoRegister && webhookUrl && webhook?.result?.url !== webhookUrl) {
@@ -164,7 +165,7 @@ export async function getTelegramStatus({ autoRegister = true, webhookUrl } = {}
       url: after?.result?.url ?? '',
       pending_update_count: after?.result?.pending_update_count ?? 0,
       last_error_date: after?.result?.last_error_date ?? null,
-      last_error_message: after?.result?.last_error_message ?? null,
+      last_error_message: after?.result?.last_error_message ? safeErrorMessage(after.result.last_error_message) : null,
     };
   }
 

@@ -134,7 +134,7 @@ async function aiEnrichEvidence(evidence) {
       rejected: false,
     };
   } catch (error) {
-    return { enabled: true, triage: null, extraction: null, candidates: [], degraded: true, error: error.message };
+    return { enabled: true, triage: null, extraction: null, candidates: [], degraded: true, error: safeErrorMessage(error) };
   }
 }
 
