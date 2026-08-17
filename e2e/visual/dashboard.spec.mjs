@@ -43,6 +43,7 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
   });
 
   test('يغطي تدفق Audit Explorer والبحث وتسجيل الخروج بمصادقة اصطناعية', async ({ page }) => {
+    let authenticated = false;
     const runtimeErrors = [];
     page.on('pageerror', (error) => runtimeErrors.push(`pageerror:${error.message}`));
     page.on('console', (message) => { if (message.type() === 'error') runtimeErrors.push(`console:${message.text()}`); });
@@ -61,13 +62,21 @@ test.describe('لوحة المشغّل — العقد المرئي والوصو�
 
     await page.route('**/api/**', async (route) => {
       const url = new URL(route.request().url());
-      const body = url.pathname.endsWith('/dashboard/login')
-        ? { ok: true }
-        : url.pathname.endsWith('/public-config')
-          ? { brand: 'Aqarat Test' }
-          : url.pathname.endsWith('/dashboard/logout')
-            ? { ok: true }
-            : dashboardPayload(url.searchParams.get('view') || 'all');
+      if (url.pathname.endsWith('/dashboard/login')) {
+        authenticated = true;
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+        return;
+      }
+      if (url.pathname.endsWith('/dashboard/logout')) {
+        authenticated = false;
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+        return;
+      }
+      if (!authenticated && url.pathname.endsWith('/dashboard/data')) {
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'AUTH' }) });
+        return;
+      }
+      const body = url.pathname.endsWith('/public-config') ? { brand: 'Aqarat Test' } : dashboardPayload(url.searchParams.get('view') || 'all');
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     });
 
