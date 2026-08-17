@@ -1,5 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 8000;
 const HEALTH_MAX_OUTPUT_TOKENS = 256;
+const DEFAULT_GEMINI_HEALTH_PROBE = 'metadata';
 
 function redactError(error) {
   const message = error?.message || String(error);
@@ -74,10 +75,29 @@ async function checkTelegram({ token, publicBaseUrl }) {
   }
 }
 
-async function checkGemini({ apiKey, model, baseUrl }) {
+async function checkGemini({ apiKey, model, baseUrl, probe = DEFAULT_GEMINI_HEALTH_PROBE }) {
   if (!apiKey || !model || !baseUrl) return { status: 'not_configured' };
   try {
-    const endpoint = `${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const root = baseUrl.replace(/\/$/, '');
+    const modelEndpoint = `${root}/models/${encodeURIComponent(model)}?key=${encodeURIComponent(apiKey)}`;
+    const metadataResponse = await timedFetch(modelEndpoint);
+    const metadata = await metadataResponse.json().catch(() => null);
+    if (!metadataResponse.ok) {
+      const retryAfter = retryAfterSeconds(metadataResponse);
+      return retryAfter === null
+        ? { status: 'error', code: metadataResponse.status }
+        : { status: 'error', code: metadataResponse.status, retry_after_seconds: retryAfter };
+    }
+
+    const supportedMethods = Array.isArray(metadata?.supportedGenerationMethods)
+      ? metadata.supportedGenerationMethods
+      : [];
+    if (!supportedMethods.includes('generateContent')) {
+      return { status: 'degraded', model, error: 'generate_content_not_supported' };
+    }
+    if (probe !== 'generation') return { status: 'ok', model, probe: 'metadata' };
+
+    const endpoint = `${root}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await timedFetch(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -109,8 +129,8 @@ async function checkGemini({ apiKey, model, baseUrl }) {
     let parsed = null;
     try { parsed = text ? JSON.parse(text) : null; } catch { parsed = null; }
     return parsed?.ok === true
-      ? { status: 'ok', model, response_chars: text.length }
-      : { status: 'degraded', model, response_chars: text.length, finish_reason: finishReason, error: 'unexpected_response' };
+      ? { status: 'ok', model, probe: 'generation', response_chars: text.length }
+      : { status: 'degraded', model, probe: 'generation', response_chars: text.length, finish_reason: finishReason, error: 'unexpected_response' };
   } catch (error) {
     return { status: 'error', error: redactError(error) };
   }
@@ -135,7 +155,7 @@ export async function collectDeepHealth(env = process.env) {
   const [supabase, telegram, gemini, sheets] = await Promise.all([
     checkSupabase({ url: env.SUPABASE_URL, serviceKey: env.SUPABASE_SERVICE_ROLE_KEY }),
     checkTelegram({ token: env.TELEGRAM_BOT_TOKEN, publicBaseUrl: env.PUBLIC_BASE_URL }),
-    checkGemini({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL || 'gemini-3.6-flash', baseUrl: env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta' }),
+    checkGemini({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL || 'gemini-3.6-flash', baseUrl: env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta', probe: env.GEMINI_HEALTH_PROBE || DEFAULT_GEMINI_HEALTH_PROBE }),
     checkSheetsQueue({ supabaseUrl: env.SUPABASE_URL, serviceKey: env.SUPABASE_SERVICE_ROLE_KEY }),
   ]);
 

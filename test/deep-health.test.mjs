@@ -6,11 +6,14 @@ function mockResponse({ status = 200, body = {}, headers = {} } = {}) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
 }
 
-test('deep health returns healthy matrix when all dependencies respond', async () => {
+function modelMetadata() {
+  return { name: 'models/gemini-3.6-flash', supportedGenerationMethods: ['generateContent'] };
+}
+
+test('deep health uses low-cost Gemini metadata probe by default', async () => {
   const originalFetch = globalThis.fetch;
   const seen = [];
-  const geminiRequests = [];
-  globalThis.fetch = async (url, options) => {
+  globalThis.fetch = async (url) => {
     seen.push(String(url));
     if (String(url).includes('/rest/v1/properties')) return mockResponse({ body: [] });
     if (String(url).includes('/rest/v1/jobs')) return mockResponse({ body: [] });
@@ -18,10 +21,7 @@ test('deep health returns healthy matrix when all dependencies respond', async (
       if (String(url).endsWith('/getMe')) return mockResponse({ body: { ok: true, result: { id: 1 } } });
       return mockResponse({ body: { ok: true, result: { url: 'https://aqarat-eg.vercel.app/api/telegram/update', pending_update_count: 0 } } });
     }
-    if (String(url).includes(':generateContent')) {
-      geminiRequests.push(JSON.parse(options.body));
-      return mockResponse({ body: { candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] } });
-    }
+    if (String(url).includes('/models/gemini-3.6-flash?')) return mockResponse({ body: modelMetadata() });
     throw new Error(`unexpected_url:${url}`);
   };
 
@@ -43,18 +43,20 @@ test('deep health returns healthy matrix when all dependencies respond', async (
     assert.equal(result.components.supabase.status, 'ok');
     assert.equal(result.components.telegram.status, 'ok');
     assert.equal(result.components.gemini.status, 'ok');
+    assert.equal(result.components.gemini.probe, 'metadata');
     assert.equal(result.components.google_sheets.status, 'ok');
     assert.ok(seen.some((url) => url.includes('/rest/v1/properties')));
-    assert.equal(geminiRequests[0].generationConfig.maxOutputTokens, 256);
-    assert.equal(geminiRequests[0].generationConfig.responseSchema.required[0], 'ok');
+    assert.ok(seen.some((url) => url.includes('/models/gemini-3.6-flash?')));
+    assert.equal(seen.filter((url) => url.includes(':generateContent')).length, 0);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('deep health marks a malformed Gemini response as degraded', async () => {
+test('explicit generation probe marks malformed Gemini output as degraded', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
+    if (String(url).includes('/models/gemini-3.6-flash?')) return mockResponse({ body: modelMetadata() });
     if (String(url).includes(':generateContent')) return mockResponse({ body: { candidates: [{ content: { parts: [{ text: 'OK' }] } }] } });
     throw new Error(`unexpected_url:${url}`);
   };
@@ -64,6 +66,7 @@ test('deep health marks a malformed Gemini response as degraded', async () => {
       GEMINI_API_KEY: 'gemini-key',
       GEMINI_MODEL: 'gemini-3.6-flash',
       GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
+      GEMINI_HEALTH_PROBE: 'generation',
     });
     assert.equal(result.ok, false);
     assert.equal(result.components.gemini.status, 'degraded');
@@ -77,6 +80,7 @@ test('deep health preserves Gemini 429 and exposes a bounded Retry-After hint', 
   const originalFetch = globalThis.fetch;
   let geminiCalls = 0;
   globalThis.fetch = async (url) => {
+    if (String(url).includes('/models/gemini-3.6-flash?')) return mockResponse({ body: modelMetadata() });
     if (String(url).includes(':generateContent')) {
       geminiCalls += 1;
       return mockResponse({ status: 429, headers: { 'retry-after': '120' }, body: { error: { status: 'RESOURCE_EXHAUSTED' } } });
@@ -89,6 +93,7 @@ test('deep health preserves Gemini 429 and exposes a bounded Retry-After hint', 
       GEMINI_API_KEY: 'gemini-key',
       GEMINI_MODEL: 'gemini-3.6-flash',
       GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
+      GEMINI_HEALTH_PROBE: 'generation',
     });
     assert.equal(result.ok, false);
     assert.equal(result.components.gemini.status, 'error');
