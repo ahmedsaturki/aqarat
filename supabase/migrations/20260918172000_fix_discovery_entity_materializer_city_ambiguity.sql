@@ -54,7 +54,7 @@ begin
 
   if property_id is null and parcel is not null then
     select id into property_id from public.properties
-    where lower(coalesce(v_city,''))=lower(coalesce(v_city,''))
+    where lower(coalesce(public.properties.city,''))=lower(coalesce(v_city,''))
       and property_type=ptype
       and transaction_type=tx::property_transaction_type
       and parcel_number=parcel
