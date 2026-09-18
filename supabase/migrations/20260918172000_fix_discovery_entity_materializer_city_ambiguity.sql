@@ -63,7 +63,7 @@ begin
 
   if property_id is null then
     insert into public.properties(property_type,transaction_type,status,title,description,
-      v_city,district,area_m2,price,currency,features,confidence,first_seen_at,last_seen_at,parcel_number,canonical_key)
+      city,district,area_m2,price,currency,features,confidence,first_seen_at,last_seen_at,parcel_number,canonical_key)
     values(ptype,tx::property_transaction_type,status,title,description,
       v_city,district,area,price,coalesce(nullif(a->>'currency',''),'EGP'),jsonb_build_object('discovery_entity_id',e.id,'source_url',e.source_url,'ai_generated',coalesce((a->>'ai_generated')::boolean,false)),confidence,now(),now(),parcel,canonical)
     returning id into property_id;
